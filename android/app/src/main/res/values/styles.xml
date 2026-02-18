@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme mientras inicia (antes del primer frame de Flutter) -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+
+    <!-- Theme cuando ya arrancó el proceso / detrás de Flutter -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Forzamos blanco para evitar negro en dark mode -->
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
