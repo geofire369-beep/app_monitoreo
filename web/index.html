@@ -30,7 +30,27 @@
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>sdp</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json">\
+  <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBuB6kWn4o3nqcCQnrBhEcfBi5dm-pFRo",
+    authDomain: "geoponica-3799d.firebaseapp.com",
+    databaseURL: "https://geoponica-3799d-default-rtdb.firebaseio.com",
+    projectId: "geoponica-3799d",
+    storageBucket: "geoponica-3799d.firebasestorage.app",
+    messagingSenderId: "815793921670",
+    appId: "1:815793921670:web:fbf769e0650c6e8f57bb07"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+</script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

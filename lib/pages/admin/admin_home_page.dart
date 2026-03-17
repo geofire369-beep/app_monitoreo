@@ -9,7 +9,7 @@ import 'admin_register_user_page.dart';
 import 'admin_monitoreo_page.dart';
 
 // Páginas nuevas (sin mapa)
-import '../admin/agro/agro_applications_page.dart';
+import 'agro/agro_applications_page.dart';
 import '../admin/reports/reports_page.dart';
 
 // ✅ NUEVO

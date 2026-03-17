@@ -10,7 +10,13 @@ import 'package:flutter/services.dart';
 import '../../models/mapa_model.dart';
 import '../../theme/app_theme.dart';
 
+// ✅ NUEVO: tabla
+import 'admin_trap_monitoreo_table_view.dart';
+
 enum AdminTrapOverlayMode { avance, plagas }
+
+// ✅ NUEVO: modo de vista
+enum AdminTrapViewMode { mapa, tabla }
 
 class AdminTrapMonitoreoPage extends StatefulWidget {
   final GreenhouseMap map;
@@ -28,6 +34,9 @@ class AdminTrapMonitoreoPage extends StatefulWidget {
 
 class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
   final _fs = FirebaseFirestore.instance;
+
+  // ✅ NUEVO: view mode
+  AdminTrapViewMode _viewMode = AdminTrapViewMode.mapa;
 
   AdminTrapOverlayMode _mode = AdminTrapOverlayMode.avance;
 
@@ -47,7 +56,11 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
   @override
   void initState() {
     super.initState();
-    _weekKeys.addAll(widget.initialWeekKeys.isEmpty ? {_isoWeekKey(DateTime.now())} : widget.initialWeekKeys);
+    _weekKeys.addAll(
+      widget.initialWeekKeys.isEmpty
+          ? {_isoWeekKey(DateTime.now())}
+          : widget.initialWeekKeys,
+    );
   }
 
   @override
@@ -58,11 +71,18 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
 
   // ---------------------- Firestore loaders ----------------------
 
-  Future<_TrapAggData> _loadTrapAgg(GreenhouseMap map, Set<String> weekKeys) async {
+  Future<_TrapAggData> _loadTrapAgg(
+    GreenhouseMap map,
+    Set<String> weekKeys,
+  ) async {
     final agg = _TrapAggData();
 
     for (final wk in weekKeys) {
-      final ghRef = _fs.collection('monitoreo_weeks').doc(wk).collection('greenhouses').doc(map.id);
+      final ghRef = _fs
+          .collection('monitoreo_weeks')
+          .doc(wk)
+          .collection('greenhouses')
+          .doc(map.id);
 
       final capsSnap = await ghRef.collection('capillas').get();
 
@@ -82,9 +102,15 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
 
           final byUid = (payload['byUid'] ?? '').toString();
 
-          final startedAt = _asDateTime(payload['startedAt'] ?? payload['startedAtMs']);
-          final finishedAt = _asDateTime(payload['finishedAt'] ?? payload['finishedAtMs']);
-          final updatedAt = _asDateTime(payload['updatedAt'] ?? payload['updatedAtMs']);
+          final startedAt = _asDateTime(
+            payload['startedAt'] ?? payload['startedAtMs'],
+          );
+          final finishedAt = _asDateTime(
+            payload['finishedAt'] ?? payload['finishedAtMs'],
+          );
+          final updatedAt = _asDateTime(
+            payload['updatedAt'] ?? payload['updatedAtMs'],
+          );
 
           final statusRaw = (payload['status'] ?? '').toString().trim();
           final status = statusRaw.toUpperCase();
@@ -104,10 +130,14 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
 
           // observations.traps = { trapId : { name, counts } }
           final obsAny = payload['observations'];
-          final obs = (obsAny is Map) ? Map<String, dynamic>.from(obsAny) : <String, dynamic>{};
+          final obs = (obsAny is Map)
+              ? Map<String, dynamic>.from(obsAny)
+              : <String, dynamic>{};
 
           final trapsAny = obs['traps'];
-          final trapsObs = (trapsAny is Map) ? Map<String, dynamic>.from(trapsAny) : <String, dynamic>{};
+          final trapsObs = (trapsAny is Map)
+              ? Map<String, dynamic>.from(trapsAny)
+              : <String, dynamic>{};
 
           if (trapsObs.isEmpty) return;
 
@@ -117,7 +147,9 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
 
             final name = (t['name'] ?? '').toString();
             final countsAny = t['counts'];
-            final countsMap = (countsAny is Map) ? Map<String, dynamic>.from(countsAny) : <String, dynamic>{};
+            final countsMap = (countsAny is Map)
+                ? Map<String, dynamic>.from(countsAny)
+                : <String, dynamic>{};
 
             final add = <String, int>{};
             countsMap.forEach((p, v) {
@@ -180,14 +212,19 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
   }
 
   Future<void> _warmUserNames(Set<String> uids) async {
-    final pending = uids.where((u) => u.isNotEmpty && !_uidNameCache.containsKey(u)).toList();
+    final pending = uids
+        .where((u) => u.isNotEmpty && !_uidNameCache.containsKey(u))
+        .toList();
     if (pending.isEmpty) return;
 
     const chunkSize = 10;
     for (int i = 0; i < pending.length; i += chunkSize) {
       final chunk = pending.sublist(i, math.min(i + chunkSize, pending.length));
       try {
-        final qs = await _fs.collection('app_users').where(FieldPath.documentId, whereIn: chunk).get();
+        final qs = await _fs
+            .collection('app_users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
         for (final d in qs.docs) {
           final m = Map<String, dynamic>.from(d.data());
 
@@ -201,7 +238,9 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
           } else if (first.isNotEmpty || last.isNotEmpty) {
             name = ('$first $last').trim();
           } else {
-            name = (m['name'] ?? m['displayName'] ?? m['email'] ?? d.id).toString().trim();
+            name = (m['name'] ?? m['displayName'] ?? m['email'] ?? d.id)
+                .toString()
+                .trim();
           }
 
           _uidNameCache[d.id] = name.isEmpty ? d.id : name;
@@ -229,7 +268,11 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [accent.withValues(alpha: 0.08), Colors.white, Colors.white],
+            colors: [
+              accent.withValues(alpha: 0.08),
+              Colors.white,
+              Colors.white,
+            ],
           ),
         ),
         child: SafeArea(
@@ -239,6 +282,11 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
               children: [
                 _TopBarTrap(
                   accent: accent,
+
+                  // ✅ NUEVO: selector mapa/tabla
+                  viewMode: _viewMode,
+                  onViewMode: (v) => setState(() => _viewMode = v),
+
                   mode: _mode,
                   onMode: (m) => setState(() => _mode = m),
                   selectedWeeks: _weekKeys,
@@ -247,67 +295,86 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
                   onFit: _fitToViewport,
                 ),
                 const SizedBox(height: 12),
+
+                // ✅ NUEVO: switch real entre mapa y tabla
                 Expanded(
-                  child: FutureBuilder<_TrapAggData>(
-                    future: _loadTrapAgg(widget.map, _weekKeys),
-                    builder: (context, snap) {
-                      if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                      final agg = snap.data!;
+                  child: _viewMode == AdminTrapViewMode.tabla
+                      ? AdminTrapMonitoreoTableView(
+                          map: widget.map,
+                          weekKeys: _weekKeys,
+                        )
+                      : FutureBuilder<_TrapAggData>(
+                          future: _loadTrapAgg(widget.map, _weekKeys),
+                          builder: (context, snap) {
+                            if (!snap.hasData)
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            final agg = snap.data!;
 
-                      final pests = agg.allPests.toList()..sort();
-                      for (final p in pests) {
-                        _pestColors.putIfAbsent(p, () => _colorFromString(p));
-                      }
+                            final pests = agg.allPests.toList()..sort();
+                            for (final p in pests) {
+                              _pestColors.putIfAbsent(
+                                p,
+                                () => _colorFromString(p),
+                              );
+                            }
 
-                      return Column(
-                        children: [
-                          _LegendBarMultiTrap(
-                            accent: accent,
-                            mode: _mode,
-                            pests: pests,
-                            selectedPests: _selectedPests,
-                            pestColors: _pestColors,
-                            onTogglePest: (p) {
-                              setState(() {
-                                if (p == null) {
-                                  _selectedPests.clear();
-                                } else {
-                                  if (_selectedPests.contains(p)) {
-                                    _selectedPests.remove(p);
-                                  } else {
-                                    _selectedPests.add(p);
-                                  }
-                                }
-                              });
-                            },
-                            onPickColor: (p) async {
-                              final c = await _pickColorDialog(context, initial: _pestColors[p] ?? _colorFromString(p));
-                              if (c == null) return;
-                              setState(() => _pestColors[p] = c);
-                            },
-                          ),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: _TrapMapViewer(
-                              map: widget.map,
-                              agg: agg,
-                              mode: _mode,
-                              selectedPests: _selectedPests,
-                              pestColors: _pestColors,
-                              tx: _tx,
-                              fittedOnce: _fittedOnce,
-                              onFittedOnce: () => _fittedOnce = true,
-                              onHoverTrap: (t) => setState(() => _hoverTrap = t),
-                              onHoverPos: (p) => setState(() => _hoverPos = p),
-                              hoverTrap: _hoverTrap,
-                              hoverPos: _hoverPos,
-                              uidName: (uid) => _uidNameCache[uid] ?? uid,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                            return Column(
+                              children: [
+                                _LegendBarMultiTrap(
+                                  accent: accent,
+                                  mode: _mode,
+                                  pests: pests,
+                                  selectedPests: _selectedPests,
+                                  pestColors: _pestColors,
+                                  onTogglePest: (p) {
+                                    setState(() {
+                                      if (p == null) {
+                                        _selectedPests.clear();
+                                      } else {
+                                        if (_selectedPests.contains(p)) {
+                                          _selectedPests.remove(p);
+                                        } else {
+                                          _selectedPests.add(p);
+                                        }
+                                      }
+                                    });
+                                  },
+                                  onPickColor: (p) async {
+                                    final c = await _pickColorDialog(
+                                      context,
+                                      initial:
+                                          _pestColors[p] ?? _colorFromString(p),
+                                    );
+                                    if (c == null) return;
+                                    setState(() => _pestColors[p] = c);
+                                  },
+                                ),
+                                const SizedBox(height: 10),
+                                Expanded(
+                                  child: _TrapMapViewer(
+                                    map: widget.map,
+                                    agg: agg,
+                                    mode: _mode,
+                                    selectedPests: _selectedPests,
+                                    pestColors: _pestColors,
+                                    tx: _tx,
+                                    fittedOnce: _fittedOnce,
+                                    onFittedOnce: () => _fittedOnce = true,
+                                    onHoverTrap: (t) =>
+                                        setState(() => _hoverTrap = t),
+                                    onHoverPos: (p) =>
+                                        setState(() => _hoverPos = p),
+                                    hoverTrap: _hoverTrap,
+                                    hoverPos: _hoverPos,
+                                    uidName: (uid) => _uidNameCache[uid] ?? uid,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -327,42 +394,359 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
   }
 
   Future<void> _pickWeeksDialog() async {
+    final accent = AppTheme.pepperGreen;
     final now = DateTime.now();
-    final options = List.generate(12, (i) => _isoWeekKey(now.subtract(Duration(days: 7 * i))));
+
+    final options = List.generate(
+      12,
+      (i) => _isoWeekKey(now.subtract(Duration(days: 7 * i))),
+    );
     final temp = Set<String>.from(_weekKeys);
+
+    String prettyWeek(String key) {
+      final parts = key.split('-W');
+      if (parts.length != 2) return key;
+      final year = parts[0];
+      final week = int.tryParse(parts[1]) ?? parts[1];
+      return 'Semana $week • $year';
+    }
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Seleccionar semanas'),
-          content: SizedBox(
-            width: 520,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: options.length,
-              itemBuilder: (_, i) {
-                final w = options[i];
-                final checked = temp.contains(w);
-                return CheckboxListTile(
-                  value: checked,
-                  title: Text(w),
-                  onChanged: (v) {
-                    if (v == true) {
-                      temp.add(w);
-                    } else {
-                      temp.remove(w);
-                    }
-                    (ctx as Element).markNeedsBuild();
-                  },
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 560, maxHeight: 680),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [accent.withValues(alpha: 0.10), Colors.white],
+              ),
+              border: Border.all(color: accent.withValues(alpha: 0.18)),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.10),
+                  blurRadius: 24,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: StatefulBuilder(
+              builder: (ctx2, setLocal) {
+                final selectedSorted = temp.toList()
+                  ..sort((a, b) => b.compareTo(a));
+
+                Widget chip(String wk) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8, bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: accent.withValues(alpha: 0.22)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.event_available_rounded,
+                          color: accent,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          wk,
+                          style: TextStyle(
+                            color: Colors.black.withValues(alpha: 0.80),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () => setLocal(() => temp.remove(wk)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: Colors.black.withValues(alpha: 0.55),
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.22),
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.date_range_outlined,
+                              color: accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Seleccionar semanas',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Cerrar',
+                            onPressed: () => Navigator.pop(ctx, false),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (temp.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Wrap(
+                            children: selectedSorted
+                                .take(10)
+                                .map(chip)
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => setLocal(
+                              () => temp
+                                ..clear()
+                                ..add(_isoWeekKey(DateTime.now())),
+                            ),
+                            icon: const Icon(Icons.today_rounded),
+                            label: const Text('Solo actual'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: accent,
+                              side: BorderSide(
+                                color: accent.withValues(alpha: 0.26),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          OutlinedButton.icon(
+                            onPressed: () => setLocal(() => temp.clear()),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Limpiar'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.black.withValues(
+                                alpha: 0.75,
+                              ),
+                              side: BorderSide(
+                                color: Colors.black.withValues(alpha: 0.12),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child: Text(
+                              '${temp.length} seleccionada(s)',
+                              style: TextStyle(
+                                color: Colors.black.withValues(alpha: 0.70),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.14),
+                          ),
+                        ),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: options.length,
+                          separatorBuilder: (_, __) => Divider(
+                            height: 1,
+                            color: Colors.black.withValues(alpha: 0.06),
+                          ),
+                          itemBuilder: (_, i) {
+                            final w = options[i];
+                            final checked = temp.contains(w);
+
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => setLocal(() {
+                                if (checked) {
+                                  temp.remove(w);
+                                } else {
+                                  temp.add(w);
+                                }
+                              }),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: checked
+                                      ? accent.withValues(alpha: 0.08)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: checked
+                                        ? accent.withValues(alpha: 0.22)
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 22,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        color: checked
+                                            ? accent
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: checked
+                                              ? accent
+                                              : Colors.black.withValues(
+                                                  alpha: 0.22,
+                                                ),
+                                          width: 1.3,
+                                        ),
+                                      ),
+                                      child: checked
+                                          ? const Icon(
+                                              Icons.check_rounded,
+                                              color: Colors.white,
+                                              size: 16,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            w,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            prettyWeek(w),
+                                            style: TextStyle(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.62,
+                                              ),
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          const Spacer(),
+                          FilledButton.icon(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            icon: const Icon(
+                              Icons.check_circle_outline_rounded,
+                            ),
+                            label: const Text('Aplicar'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: accent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Aplicar')),
-          ],
         );
       },
     );
@@ -372,13 +756,17 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
         _weekKeys
           ..clear()
           ..addAll(temp.isEmpty ? {_isoWeekKey(DateTime.now())} : temp);
+
         _hoverTrap = null;
         _hoverPos = null;
       });
     }
   }
 
-  Future<Color?> _pickColorDialog(BuildContext context, {required Color initial}) async {
+  Future<Color?> _pickColorDialog(
+    BuildContext context, {
+    required Color initial,
+  }) async {
     final palette = <Color>[
       const Color(0xFFe53935),
       const Color(0xFFfb8c00),
@@ -422,7 +810,9 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
                         color: c,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: sel ? Colors.black.withValues(alpha: 0.7) : Colors.black.withValues(alpha: 0.15),
+                          color: sel
+                              ? Colors.black.withValues(alpha: 0.7)
+                              : Colors.black.withValues(alpha: 0.15),
                           width: sel ? 2.2 : 1.0,
                         ),
                       ),
@@ -433,8 +823,14 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Aplicar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Aplicar'),
+            ),
           ],
         );
       },
@@ -475,7 +871,9 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
   int _isoWeekNumber(DateTime dt) {
     final thursday = dt.add(Duration(days: 3 - ((dt.weekday + 6) % 7)));
     final firstThursday = DateTime(thursday.year, 1, 4);
-    final firstWeekThursday = firstThursday.add(Duration(days: 3 - ((firstThursday.weekday + 6) % 7)));
+    final firstWeekThursday = firstThursday.add(
+      Duration(days: 3 - ((firstThursday.weekday + 6) % 7)),
+    );
     final diff = thursday.difference(firstWeekThursday).inDays;
     return 1 + (diff ~/ 7);
   }
@@ -494,6 +892,11 @@ class _AdminTrapMonitoreoPageState extends State<AdminTrapMonitoreoPage> {
 
 class _TopBarTrap extends StatelessWidget {
   final Color accent;
+
+  // ✅ NUEVO
+  final AdminTrapViewMode viewMode;
+  final ValueChanged<AdminTrapViewMode> onViewMode;
+
   final AdminTrapOverlayMode mode;
   final ValueChanged<AdminTrapOverlayMode> onMode;
 
@@ -505,6 +908,10 @@ class _TopBarTrap extends StatelessWidget {
 
   const _TopBarTrap({
     required this.accent,
+
+    required this.viewMode,
+    required this.onViewMode,
+
     required this.mode,
     required this.onMode,
     required this.selectedWeeks,
@@ -534,19 +941,52 @@ class _TopBarTrap extends StatelessWidget {
         spacing: 10,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          SegmentedButton<AdminTrapOverlayMode>(
+          // ✅ NUEVO: Mapa / Tabla
+          SegmentedButton<AdminTrapViewMode>(
             segments: const [
-              ButtonSegment(value: AdminTrapOverlayMode.avance, label: Text('Avance'), icon: Icon(Icons.timeline_outlined)),
-              ButtonSegment(value: AdminTrapOverlayMode.plagas, label: Text('Plagas'), icon: Icon(Icons.bug_report_outlined)),
+              ButtonSegment(
+                value: AdminTrapViewMode.mapa,
+                label: Text('Mapa'),
+                icon: Icon(Icons.map_outlined),
+              ),
+              ButtonSegment(
+                value: AdminTrapViewMode.tabla,
+                label: Text('Tabla'),
+                icon: Icon(Icons.table_rows_outlined),
+              ),
             ],
-            selected: {mode},
-            onSelectionChanged: (s) => onMode(s.first),
+            selected: {viewMode},
+            onSelectionChanged: (s) => onViewMode(s.first),
           ),
+
+          // ✅ Solo relevante en MAPA
+          if (viewMode == AdminTrapViewMode.mapa)
+            SegmentedButton<AdminTrapOverlayMode>(
+              segments: const [
+                ButtonSegment(
+                  value: AdminTrapOverlayMode.avance,
+                  label: Text('Avance'),
+                  icon: Icon(Icons.timeline_outlined),
+                ),
+                ButtonSegment(
+                  value: AdminTrapOverlayMode.plagas,
+                  label: Text('Plagas'),
+                  icon: Icon(Icons.bug_report_outlined),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) => onMode(s.first),
+            ),
+
           OutlinedButton.icon(
             onPressed: onWeeks,
             icon: const Icon(Icons.date_range_outlined),
             label: Text('Semanas (${selectedWeeks.length})'),
-            style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
           ),
           FilledButton.icon(
             onPressed: onFit,
@@ -556,13 +996,18 @@ class _TopBarTrap extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             mapName,
-            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black.withValues(alpha: 0.60)),
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: Colors.black.withValues(alpha: 0.60),
+            ),
           ),
         ],
       ),
     );
   }
 }
+
+// ========================= LEGEND =========================
 
 class _LegendBarMultiTrap extends StatelessWidget {
   final Color accent;
@@ -600,13 +1045,22 @@ class _LegendBarMultiTrap extends StatelessWidget {
           children: [
             _Dot(color: Colors.green.withValues(alpha: 0.85)),
             const SizedBox(width: 8),
-            const Text('Trampa con datos', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'Trampa con datos',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(width: 16),
             _Dot(color: Colors.black.withValues(alpha: 0.20)),
             const SizedBox(width: 8),
-            const Text('Sin datos', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'Sin datos',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const Spacer(),
-            Text('Hover para ver detalles', style: TextStyle(color: Colors.black.withValues(alpha: 0.6))),
+            Text(
+              'Hover para ver detalles',
+              style: TextStyle(color: Colors.black.withValues(alpha: 0.6)),
+            ),
           ],
         ),
       );
@@ -633,8 +1087,6 @@ class _LegendBarMultiTrap extends StatelessWidget {
             label: const Text('Todas'),
             onSelected: (_) => onTogglePest(null),
           ),
-
-          // ✅ Chips por plaga con selector de color (ícono derecho)
           ...pests.map((p) {
             final selected = selectedPests.contains(p);
             final c = pestColors[p] ?? accent;
@@ -642,11 +1094,12 @@ class _LegendBarMultiTrap extends StatelessWidget {
             return InputChip(
               selected: selected,
               onPressed: () => onTogglePest(p),
-
-              // ✅ botón separado (estable) para elegir color
               onDeleted: () => onPickColor(p),
-              deleteIcon: Icon(Icons.palette_outlined, size: 18, color: Colors.black.withValues(alpha: 0.70)),
-
+              deleteIcon: Icon(
+                Icons.palette_outlined,
+                size: 18,
+                color: Colors.black.withValues(alpha: 0.70),
+              ),
               label: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -656,7 +1109,9 @@ class _LegendBarMultiTrap extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: c.withValues(alpha: 0.95),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.18),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -665,11 +1120,13 @@ class _LegendBarMultiTrap extends StatelessWidget {
               ),
             );
           }),
-
           if (pests.isEmpty)
             Text(
               'No hay plagas en las semanas seleccionadas.',
-              style: TextStyle(color: Colors.black.withValues(alpha: 0.65), fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.black.withValues(alpha: 0.65),
+                fontWeight: FontWeight.w700,
+              ),
             ),
         ],
       ),
@@ -683,7 +1140,11 @@ class _Dot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: 14, height: 14, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
+    return Container(
+      width: 14,
+      height: 14,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
   }
 }
 
@@ -747,7 +1208,11 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 18, offset: const Offset(0, 10)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
         ],
       ),
       child: ClipRRect(
@@ -766,7 +1231,9 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
 
             final cursor = _dragging
                 ? SystemMouseCursors.grabbing
-                : (_overTrap ? SystemMouseCursors.click : SystemMouseCursors.basic);
+                : (_overTrap
+                      ? SystemMouseCursors.click
+                      : SystemMouseCursors.basic);
 
             final pos = widget.hoverPos;
             final tooltipW = 420.0;
@@ -777,8 +1244,14 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
             double top = 12;
 
             if (pos != null) {
-              left = (pos.dx + tooltipOffset.dx).clamp(12.0, math.max(12.0, c.maxWidth - tooltipW - 12));
-              top = (pos.dy + tooltipOffset.dy).clamp(12.0, math.max(12.0, c.maxHeight - tooltipH - 12));
+              left = (pos.dx + tooltipOffset.dx).clamp(
+                12.0,
+                math.max(12.0, c.maxWidth - tooltipW - 12),
+              );
+              top = (pos.dy + tooltipOffset.dy).clamp(
+                12.0,
+                math.max(12.0, c.maxHeight - tooltipH - 12),
+              );
             }
 
             return Stack(
@@ -786,7 +1259,8 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
                 Positioned.fill(
                   child: Listener(
                     onPointerDown: (e) {
-                      if (e.kind == PointerDeviceKind.mouse) setState(() => _dragging = true);
+                      if (e.kind == PointerDeviceKind.mouse)
+                        setState(() => _dragging = true);
                     },
                     onPointerUp: (_) => setState(() => _dragging = false),
                     onPointerCancel: (_) => setState(() => _dragging = false),
@@ -819,7 +1293,9 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
                         behavior: HitTestBehavior.opaque,
                         onDoubleTapDown: (d) => _lastTapPos = d.localPosition,
                         onDoubleTap: () {
-                          final fp = _lastTapPos ?? Offset(c.maxWidth / 2, c.maxHeight / 2);
+                          final fp =
+                              _lastTapPos ??
+                              Offset(c.maxWidth / 2, c.maxHeight / 2);
                           _zoomBy(factor: 1.65, focalPoint: fp);
                         },
                         child: InteractiveViewer(
@@ -950,8 +1426,7 @@ class _TrapMapViewerState extends State<_TrapMapViewer> {
       ns = NS.north;
       final rowFromTop = ((y - northY0) / m.cellH).floor();
       if (rowFromTop < 0 || rowFromTop >= map.postsNorth) return null;
-      // ✅ NORTE: abajo->arriba
-      post = map.postsNorth - rowFromTop;
+      post = map.postsNorth - rowFromTop; // NORTE abajo->arriba
       if (post < 1 || post > map.postsNorth) return null;
     } else if (y >= southY0 && y < southY1) {
       ns = NS.south;
@@ -1010,7 +1485,11 @@ class _ZoomControls extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 8)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
               ],
             ),
             child: Icon(icon, color: accent, size: 20),
@@ -1060,10 +1539,13 @@ class _TrapHoverInfo extends StatelessWidget {
 
     final trapDef = map.traps.firstWhere(
       (x) => x.id == hover!.trapId,
-      orElse: () => TrapDef(id: hover!.trapId, name: '(trampa)', cells: const []),
+      orElse: () =>
+          TrapDef(id: hover!.trapId, name: '(trampa)', cells: const []),
     );
 
-    final name = (t?.trapName.trim().isNotEmpty == true) ? t!.trapName.trim() : trapDef.name.trim();
+    final name = (t?.trapName.trim().isNotEmpty == true)
+        ? t!.trapName.trim()
+        : trapDef.name.trim();
     final uid = t?.byUid;
     final who = (uid == null || uid.isEmpty) ? null : uidName(uid);
 
@@ -1080,13 +1562,19 @@ class _TrapHoverInfo extends StatelessWidget {
       hora = _fmtFull(up);
     }
 
-    final fecha = st != null ? _fmtDate(st) : (ft != null ? _fmtDate(ft) : (up != null ? _fmtDate(up) : null));
+    final fecha = st != null
+        ? _fmtDate(st)
+        : (ft != null ? _fmtDate(ft) : (up != null ? _fmtDate(up) : null));
 
     final pests = t?.pestsTotals ?? const <String, int>{};
-    final pestKeys = pests.keys.toList()..sort((a, b) => (pests[b] ?? 0).compareTo(pests[a] ?? 0));
+    final pestKeys = pests.keys.toList()
+      ..sort((a, b) => (pests[b] ?? 0).compareTo(pests[a] ?? 0));
 
-    final title = '$name • ${hover!.ns == NS.north ? "NORTE" : "SUR"} Línea ${hover!.lineNo} Poste ${hover!.post}';
-    final statusText = (t == null || pests.isEmpty) ? 'Sin datos en semanas seleccionadas' : 'Con datos';
+    final title =
+        '$name • ${hover!.ns == NS.north ? "NORTE" : "SUR"} Línea ${hover!.lineNo} Poste ${hover!.post}';
+    final statusText = (t == null || pests.isEmpty)
+        ? 'Sin datos en semanas seleccionadas'
+        : 'Con datos';
 
     return Container(
       constraints: const BoxConstraints(maxWidth: 420),
@@ -1096,7 +1584,10 @@ class _TrapHoverInfo extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: DefaultTextStyle(
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1104,13 +1595,23 @@ class _TrapHoverInfo extends StatelessWidget {
               children: [
                 Icon(Icons.local_activity_outlined, color: accent, size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
               statusText,
-              style: TextStyle(color: (t != null && pests.isNotEmpty) ? Colors.greenAccent : Colors.white70),
+              style: TextStyle(
+                color: (t != null && pests.isNotEmpty)
+                    ? Colors.greenAccent
+                    : Colors.white70,
+              ),
             ),
             if (who != null) ...[
               const SizedBox(height: 4),
@@ -1118,19 +1619,42 @@ class _TrapHoverInfo extends StatelessWidget {
             ],
             if (fecha != null || hora != null) ...[
               const SizedBox(height: 2),
-              Text('Hora: ${hora ?? "--"}${fecha != null ? " • $fecha" : ""}', style: const TextStyle(color: Colors.white70)),
+              Text(
+                'Hora: ${hora ?? "--"}${fecha != null ? " • $fecha" : ""}',
+                style: const TextStyle(color: Colors.white70),
+              ),
             ],
             const SizedBox(height: 8),
-            Text('Plagas:', style: TextStyle(color: Colors.white.withValues(alpha: 0.92), fontWeight: FontWeight.w900)),
+            Text(
+              'Plagas:',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.92),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
             const SizedBox(height: 6),
             if (pestKeys.isEmpty)
-              const Text('Sin plagas registradas.', style: TextStyle(color: Colors.white70))
+              const Text(
+                'Sin plagas registradas.',
+                style: TextStyle(color: Colors.white70),
+              )
             else
-              ...pestKeys.take(10).map((p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text('• $p: ${pests[p] ?? 0}', style: const TextStyle(color: Colors.white70)),
-                  )),
-            if (pestKeys.length > 10) Text('+ ${pestKeys.length - 10} más...', style: const TextStyle(color: Colors.white70)),
+              ...pestKeys
+                  .take(10)
+                  .map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '• $p: ${pests[p] ?? 0}',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+            if (pestKeys.length > 10)
+              Text(
+                '+ ${pestKeys.length - 10} más...',
+                style: const TextStyle(color: Colors.white70),
+              ),
           ],
         ),
       ),
@@ -1159,7 +1683,8 @@ class _TrapHoverInfo extends StatelessWidget {
   String _fmtHMS(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
 
-  String _fmtDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   String _fmtFull(DateTime d) => '${_fmtDate(d)} ${_fmtHMS(d)}';
 }
@@ -1176,9 +1701,6 @@ class _AdminTrapMapPainter extends CustomPainter {
 
   final _TrapHoverKey? hoverTrap;
 
-  late final Map<String, int> _lineToColNorth;
-  late final Map<String, int> _lineToColSouth;
-
   // ✅ mapping trapId -> capId
   late final Map<String, String> _trapIdToCapId;
 
@@ -1190,14 +1712,6 @@ class _AdminTrapMapPainter extends CustomPainter {
     required this.pestColors,
     required this.hoverTrap,
   }) {
-    _lineToColNorth = {};
-    _lineToColSouth = {};
-    for (int col = 0; col < map.totalColumns; col++) {
-      final ci = map.columnInfo(col);
-      if (ci.northLineNo != null) _lineToColNorth['${ci.capilla.id}_${ci.northLineNo}'] = col;
-      if (ci.southLineNo != null) _lineToColSouth['${ci.capilla.id}_${ci.southLineNo}'] = col;
-    }
-
     _trapIdToCapId = {};
     for (final t in map.traps) {
       String? cap;
@@ -1234,14 +1748,22 @@ class _AdminTrapMapPainter extends CustomPainter {
     }
 
     if (hoverTrap != null) {
-      final trap = map.traps.firstWhere((t) => t.id == hoverTrap!.trapId, orElse: () => TrapDef(id: '', name: '', cells: const []));
+      final trap = map.traps.firstWhere(
+        (t) => t.id == hoverTrap!.trapId,
+        orElse: () => TrapDef(id: '', name: '', cells: const []),
+      );
       if (trap.id.isNotEmpty) {
         _paintTrap(canvas, m, trap, forceHighlight: true);
       }
     }
   }
 
-  void _paintTrap(Canvas canvas, _TrapMapMetrics m, TrapDef trap, {bool forceHighlight = false}) {
+  void _paintTrap(
+    Canvas canvas,
+    _TrapMapMetrics m,
+    TrapDef trap, {
+    bool forceHighlight = false,
+  }) {
     if (trap.cells.isEmpty) return;
 
     final cellsRects = <Rect>[];
@@ -1264,13 +1786,17 @@ class _AdminTrapMapPainter extends CustomPainter {
     if (cellsRects.isEmpty) return;
 
     final capId = _trapIdToCapId[trap.id];
-    final aggTrap = (capId == null) ? null : agg.traps[_TrapKey(capId: capId, trapId: trap.id)];
+    final aggTrap = (capId == null)
+        ? null
+        : agg.traps[_TrapKey(capId: capId, trapId: trap.id)];
 
     Color fill;
 
     if (mode == AdminTrapOverlayMode.avance) {
       final hasData = (aggTrap != null && aggTrap.pestsTotals.isNotEmpty);
-      fill = hasData ? Colors.green.withValues(alpha: 0.60) : Colors.black.withValues(alpha: 0.08);
+      fill = hasData
+          ? Colors.green.withValues(alpha: 0.60)
+          : Colors.black.withValues(alpha: 0.08);
     } else {
       final pests = aggTrap?.pestsTotals ?? const <String, int>{};
 
@@ -1278,16 +1804,19 @@ class _AdminTrapMapPainter extends CustomPainter {
         fill = Colors.black.withValues(alpha: 0.08);
       } else {
         if (selectedPests.isNotEmpty) {
-          // ✅ FILTRO REAL: solo si tiene la plaga seleccionada con conteo > 0
           final tag = _topPestAmong(pests, selectedPests);
           if (tag == null) {
             fill = Colors.black.withValues(alpha: 0.08);
           } else {
-            fill = (pestColors[tag] ?? _colorFromString(tag)).withValues(alpha: 0.78);
+            fill = (pestColors[tag] ?? _colorFromString(tag)).withValues(
+              alpha: 0.78,
+            );
           }
         } else {
           final best = _topPest(pests);
-          fill = (pestColors[best] ?? _colorFromString(best)).withValues(alpha: 0.78);
+          fill = (pestColors[best] ?? _colorFromString(best)).withValues(
+            alpha: 0.78,
+          );
         }
       }
     }
@@ -1304,8 +1833,14 @@ class _AdminTrapMapPainter extends CustomPainter {
       ..color = AppTheme.pepperGreen.withValues(alpha: 0.95);
 
     for (final r in cellsRects) {
-      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(6)), cellPaint);
-      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(6)), border);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(6)),
+        cellPaint,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(6)),
+        border,
+      );
     }
 
     final bb = _boundingBox(cellsRects);
@@ -1314,9 +1849,15 @@ class _AdminTrapMapPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0
         ..color = Colors.black.withValues(alpha: 0.25);
-      canvas.drawRRect(RRect.fromRectAndRadius(bb.inflate(3), const Radius.circular(10)), outline);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bb.inflate(3), const Radius.circular(10)),
+        outline,
+      );
       if (forceHighlight) {
-        canvas.drawRRect(RRect.fromRectAndRadius(bb.inflate(5), const Radius.circular(12)), borderStrong);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(bb.inflate(5), const Radius.circular(12)),
+          borderStrong,
+        );
       }
 
       final label = trap.name.trim().isEmpty ? trap.id : trap.name.trim();
@@ -1334,7 +1875,10 @@ class _AdminTrapMapPainter extends CustomPainter {
         ellipsis: '…',
       )..layout(maxWidth: math.max(0, bb.width - 8));
 
-      tp.paint(canvas, Offset(bb.center.dx - tp.width / 2, bb.top - tp.height - 4));
+      tp.paint(
+        canvas,
+        Offset(bb.center.dx - tp.width / 2, bb.top - tp.height - 4),
+      );
     }
   }
 
@@ -1374,13 +1918,20 @@ class _AdminTrapMapPainter extends CustomPainter {
 
   void _drawBand(Canvas canvas, _TrapMapMetrics m, NS ns) {
     final top = (ns == NS.north) ? m.northY0 : m.southY0;
-    final h = (ns == NS.north) ? map.postsNorth * m.cellH : map.postsSouth * m.cellH;
+    final h = (ns == NS.north)
+        ? map.postsNorth * m.cellH
+        : map.postsSouth * m.cellH;
 
     final bandPaint = Paint()
-      ..color = (ns == NS.north) ? Colors.black.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.015);
+      ..color = (ns == NS.north)
+          ? Colors.black.withValues(alpha: 0.02)
+          : Colors.black.withValues(alpha: 0.015);
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(m.gutterW, top, m.gridW, h), const Radius.circular(14)),
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(m.gutterW, top, m.gridW, h),
+        const Radius.circular(14),
+      ),
       bandPaint,
     );
   }
@@ -1425,7 +1976,9 @@ class _AdminTrapMapPainter extends CustomPainter {
       final ci = map.columnInfo(col);
       final capId = ci.capilla.id;
       final capNameRaw = (ci.capilla.name ?? '').toString();
-      final name = capNameRaw.trim().isEmpty ? ci.capilla.id : capNameRaw.trim();
+      final name = capNameRaw.trim().isEmpty
+          ? ci.capilla.id
+          : capNameRaw.trim();
 
       if (lastCapId == null) {
         lastCapId = capId;
@@ -1468,17 +2021,23 @@ class _AdminTrapMapPainter extends CustomPainter {
           textDirection: TextDirection.ltr,
         )..layout();
 
-        tp.paint(canvas, Offset(m.gutterW - tp.width - 8.0, y + (m.cellH - tp.height) / 2.0));
+        tp.paint(
+          canvas,
+          Offset(m.gutterW - tp.width - 8.0, y + (m.cellH - tp.height) / 2.0),
+        );
       }
 
       if (post % 5 == 0) {
         final yy = y + m.cellH;
-        canvas.drawLine(Offset(m.gutterW, yy), Offset(m.gutterW + m.gridW, yy), rowDivider);
+        canvas.drawLine(
+          Offset(m.gutterW, yy),
+          Offset(m.gutterW + m.gridW, yy),
+          rowDivider,
+        );
       }
     }
   }
 
-  // ✅ FIX CRÍTICO: solo cuenta plagas con valor > 0 (si no, no hay match)
   String? _topPestAmong(Map<String, int> pests, Set<String> allowed) {
     var best = '';
     var bestV = 0;
@@ -1541,12 +2100,20 @@ class _TrapMapMetrics {
   double get northY0 => margin + labelH;
   double get northY1 => northY0 + map.postsNorth * cellH;
 
-  double get southY0 => (margin + labelH + map.postsNorth * cellH + midHeaderH + labelH);
+  double get southY0 =>
+      (margin + labelH + map.postsNorth * cellH + midHeaderH + labelH);
   double get southY1 => southY0 + map.postsSouth * cellH;
 
   Size get canvasSize {
     final w = gutterW + gridW + margin;
-    final h = margin + labelH + map.postsNorth * cellH + midHeaderH + labelH + map.postsSouth * cellH + margin;
+    final h =
+        margin +
+        labelH +
+        map.postsNorth * cellH +
+        midHeaderH +
+        labelH +
+        map.postsSouth * cellH +
+        margin;
     return Size(w, h);
   }
 }
@@ -1567,7 +2134,8 @@ class _TrapKey {
   const _TrapKey({required this.capId, required this.trapId});
 
   @override
-  bool operator ==(Object other) => other is _TrapKey && other.capId == capId && other.trapId == trapId;
+  bool operator ==(Object other) =>
+      other is _TrapKey && other.capId == capId && other.trapId == trapId;
 
   @override
   int get hashCode => Object.hash(capId, trapId);
@@ -1580,7 +2148,8 @@ class _TrapLineKey {
   const _TrapLineKey({required this.capId, required this.lineKey});
 
   @override
-  bool operator ==(Object other) => other is _TrapLineKey && other.capId == capId && other.lineKey == lineKey;
+  bool operator ==(Object other) =>
+      other is _TrapLineKey && other.capId == capId && other.lineKey == lineKey;
 
   @override
   int get hashCode => Object.hash(capId, lineKey);

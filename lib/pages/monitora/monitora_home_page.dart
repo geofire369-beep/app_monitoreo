@@ -7,8 +7,8 @@ import '../../../theme/app_theme.dart';
 
 // Pages destino
 import 'monitora_new_monitoring_page.dart';
-import 'monitora_history_page.dart';
 import 'monitora_new_trap_monitoring_page.dart';
+import 'monitora_agro_apply_page.dart';
 
 class HomeMonitoraPage extends StatelessWidget {
   const HomeMonitoraPage({super.key});
@@ -16,6 +16,8 @@ class HomeMonitoraPage extends StatelessWidget {
   // ✅ MISMO FONDO LOCAL QUE ADMIN
   static const String _bgAsset = 'assets/images/fondos.png';
   static const String _logoSvg = 'assets/icons/logo.svg';
+
+  static const Color _agroAccent = Color(0xFFF55000);
 
   Future<void> _logout(BuildContext context) async {
     final ok = await showGeneralDialog<bool>(
@@ -26,7 +28,10 @@ class HomeMonitoraPage extends StatelessWidget {
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, __, ___) => const _ConfirmLogoutDialog(),
       transitionBuilder: (context, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -54,7 +59,10 @@ class HomeMonitoraPage extends StatelessWidget {
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => const _ProfileDialog(),
       transitionBuilder: (context, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -102,10 +110,8 @@ class HomeMonitoraPage extends StatelessWidget {
         ],
       ),
 
-      // ================= BODY =================
       body: Stack(
         children: [
-          // Fondo local
           Positioned.fill(
             child: Image.asset(
               _bgAsset,
@@ -113,14 +119,9 @@ class HomeMonitoraPage extends StatelessWidget {
               filterQuality: FilterQuality.high,
             ),
           ),
-
-          // Capa blanca
           Positioned.fill(
-            child: Container(
-              color: Colors.white.withValues(alpha: 0.72),
-            ),
+            child: Container(color: Colors.white.withValues(alpha: 0.72)),
           ),
-
           SafeArea(
             top: false,
             child: Padding(
@@ -128,7 +129,11 @@ class HomeMonitoraPage extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final w = constraints.maxWidth;
-                  final cols = w >= 1200 ? 3 : w >= 760 ? 2 : 1;
+                  final cols = w >= 1200
+                      ? 3
+                      : w >= 760
+                      ? 2
+                      : 1;
 
                   return GridView.count(
                     crossAxisCount: cols,
@@ -139,14 +144,12 @@ class HomeMonitoraPage extends StatelessWidget {
                       _MonitoraCard(
                         accent: accent,
                         title: 'Monitoreo de plaga',
-                        subtitle:
-                            'Selecciona invernadero, capilla y línea',
+                        subtitle: 'Selecciona invernadero, capilla y línea',
                         icon: Icons.bug_report_outlined,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const MonitoraNewMonitoringPage(),
+                            builder: (_) => const MonitoraNewMonitoringPage(),
                           ),
                         ),
                       ),
@@ -164,15 +167,14 @@ class HomeMonitoraPage extends StatelessWidget {
                         ),
                       ),
                       _MonitoraCard(
-                        accent: accent,
-                        title: 'Historial',
-                        subtitle: 'Ver monitoreos previos',
-                        icon: Icons.history_rounded,
+                        accent: _agroAccent,
+                        title: 'Aplicar agroquímicos',
+                        subtitle: 'Aplicación a FOCO o general',
+                        icon: Icons.science_outlined,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                const MonitoraHistoryPage(),
+                            builder: (_) => const MonitoraAgroApplyPage(),
                           ),
                         ),
                       ),
@@ -188,7 +190,6 @@ class HomeMonitoraPage extends StatelessWidget {
   }
 }
 
-// ================= CARD =================
 class _MonitoraCard extends StatefulWidget {
   final Color accent;
   final String title;
@@ -220,17 +221,12 @@ class _MonitoraCardState extends State<_MonitoraCard> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          transform: Matrix4.translationValues(
-            0.0,
-            _hover ? -3.0 : 0.0,
-            0.0,
-          ),
+          transform: Matrix4.translationValues(0.0, _hover ? -3.0 : 0.0, 0.0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(
-                    alpha: _hover ? 0.16 : 0.10),
+                color: Colors.black.withValues(alpha: _hover ? 0.16 : 0.10),
                 blurRadius: _hover ? 20 : 14,
                 offset: const Offset(0, 10),
               ),
@@ -252,35 +248,25 @@ class _MonitoraCardState extends State<_MonitoraCard> {
                       color: widget.accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child:
-                        Icon(widget.icon, color: widget.accent),
+                    child: Icon(widget.icon, color: widget.accent),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           widget.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           widget.subtitle,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
+                          style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
-                                color: Colors.black
-                                    .withValues(alpha: 0.70),
+                                color: Colors.black.withValues(alpha: 0.70),
                               ),
                         ),
                       ],
@@ -288,8 +274,7 @@ class _MonitoraCardState extends State<_MonitoraCard> {
                   ),
                   Icon(
                     Icons.chevron_right,
-                    color: Colors.black
-                        .withValues(alpha: 0.45),
+                    color: Colors.black.withValues(alpha: 0.45),
                   ),
                 ],
               ),
@@ -301,7 +286,6 @@ class _MonitoraCardState extends State<_MonitoraCard> {
   }
 }
 
-// ================= CONFIRM LOGOUT =================
 class _ConfirmLogoutDialog extends StatelessWidget {
   const _ConfirmLogoutDialog();
 
@@ -317,8 +301,7 @@ class _ConfirmLogoutDialog extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Card(
               elevation: 14,
-              shadowColor:
-                  Colors.black.withValues(alpha: 0.22),
+              shadowColor: Colors.black.withValues(alpha: 0.22),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -327,8 +310,7 @@ class _ConfirmLogoutDialog extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.logout_rounded,
-                        color: accent, size: 62),
+                    Icon(Icons.logout_rounded, color: accent, size: 62),
                     const SizedBox(height: 10),
                     const Text(
                       'Cerrar sesión',
@@ -342,8 +324,7 @@ class _ConfirmLogoutDialog extends StatelessWidget {
                       '¿Seguro que quieres salir?',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.black
-                            .withValues(alpha: 0.72),
+                        color: Colors.black.withValues(alpha: 0.72),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -351,8 +332,7 @@ class _ConfirmLogoutDialog extends StatelessWidget {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () =>
-                                Navigator.pop(context, false),
+                            onPressed: () => Navigator.pop(context, false),
                             child: const Text('Cancelar'),
                           ),
                         ),
@@ -363,8 +343,7 @@ class _ConfirmLogoutDialog extends StatelessWidget {
                               backgroundColor: accent,
                               foregroundColor: Colors.white,
                             ),
-                            onPressed: () =>
-                                Navigator.pop(context, true),
+                            onPressed: () => Navigator.pop(context, true),
                             child: const Text('Salir'),
                           ),
                         ),
@@ -381,7 +360,6 @@ class _ConfirmLogoutDialog extends StatelessWidget {
   }
 }
 
-// ================= PERFIL =================
 class _ProfileDialog extends StatelessWidget {
   const _ProfileDialog();
 
@@ -399,8 +377,7 @@ class _ProfileDialog extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Card(
               elevation: 14,
-              shadowColor:
-                  Colors.black.withValues(alpha: 0.28),
+              shadowColor: Colors.black.withValues(alpha: 0.28),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(22),
               ),
@@ -408,22 +385,16 @@ class _ProfileDialog extends StatelessWidget {
                 padding: const EdgeInsets.all(18),
                 child: uid == null
                     ? const Text('Sin sesión')
-                    : StreamBuilder<
-                        DocumentSnapshot<Map<String, dynamic>>>(
+                    : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                         stream: FirebaseFirestore.instance
                             .collection('app_users')
                             .doc(uid)
                             .snapshots(),
                         builder: (context, snap) {
                           final data = snap.data?.data();
-                          final email =
-                              (data?['email'] ??
-                                      user?.email ??
-                                      '')
-                                  .toString();
-                          final name =
-                              (data?['fullName'] ?? '')
-                                  .toString();
+                          final email = (data?['email'] ?? user?.email ?? '')
+                              .toString();
+                          final name = (data?['fullName'] ?? '').toString();
 
                           return Column(
                             mainAxisSize: MainAxisSize.min,
@@ -440,8 +411,7 @@ class _ProfileDialog extends StatelessWidget {
                               Text(email),
                               const SizedBox(height: 14),
                               FilledButton(
-                                onPressed: () =>
-                                    Navigator.pop(context),
+                                onPressed: () => Navigator.pop(context),
                                 child: const Text('OK'),
                               ),
                             ],

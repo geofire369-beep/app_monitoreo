@@ -10,10 +10,12 @@ class MonitoraNewTrapMonitoringPage extends StatefulWidget {
   const MonitoraNewTrapMonitoringPage({super.key});
 
   @override
-  State<MonitoraNewTrapMonitoringPage> createState() => _MonitoraNewTrapMonitoringPageState();
+  State<MonitoraNewTrapMonitoringPage> createState() =>
+      _MonitoraNewTrapMonitoringPageState();
 }
 
-class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitoringPage> {
+class _MonitoraNewTrapMonitoringPageState
+    extends State<MonitoraNewTrapMonitoringPage> {
   static const String _mapsCol = 'greenhouses_maps';
 
   String? _selectedMapId;
@@ -39,7 +41,8 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
         stream: FirebaseFirestore.instance.collection(_mapsCol).snapshots(),
         builder: (context, snap) {
           if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snap.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final docs = snap.data!.docs;
           final items = <_GreenhouseItem>[];
@@ -49,15 +52,20 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
             _docCache[d.id] = data;
 
             final name = (data['name'] ?? '').toString().trim();
-            items.add(_GreenhouseItem(
-              id: d.id,
-              name: name.isEmpty ? '(sin nombre)' : name,
-            ));
+            items.add(
+              _GreenhouseItem(
+                id: d.id,
+                name: name.isEmpty ? '(sin nombre)' : name,
+              ),
+            );
           }
 
-          items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          items.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
 
-          if (_selectedMapId != null && items.every((x) => x.id != _selectedMapId)) {
+          if (_selectedMapId != null &&
+              items.every((x) => x.id != _selectedMapId)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               _resetAll();
@@ -98,15 +106,22 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                 },
                 canSelectCapilla: _selectedMap != null,
                 selectedMapName: _selectedMap?.name,
-                selectedCapName: _selectedCapilla == null ? null : _capName(_selectedCapilla!),
+                selectedCapName: _selectedCapilla == null
+                    ? null
+                    : _capName(_selectedCapilla!),
                 selectedLine: _selectedLine,
               );
 
               // ✅ doneKeys se calcula en cada build
               final doneKeys = _doneTrapLineKeysForSelectedCapillaThisWeek();
 
-              final linesWidget = (_selectedMap == null || _selectedCapilla == null)
-                  ? _emptyLinesHint(accent: accent, msg: 'Selecciona un invernadero y una capilla para ver trampas.')
+              final linesWidget =
+                  (_selectedMap == null || _selectedCapilla == null)
+                  ? _emptyLinesHint(
+                      accent: accent,
+                      msg:
+                          'Selecciona un invernadero y una capilla para ver trampas.',
+                    )
                   : _trapLinesTwoSidesList(
                       doneKeys: doneKeys,
                       shrinkWrap: !isWide,
@@ -121,9 +136,14 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                 expandBody: isWide,
               );
 
-              final selectedLineObj = (_selectedLine == null) ? null : _findLineByNo(_selectedLine!);
-              final selectedKey = (selectedLineObj == null) ? null : _lineKey(selectedLineObj);
-              final isSelectedDone = (selectedKey != null) && doneKeys.contains(selectedKey);
+              final selectedLineObj = (_selectedLine == null)
+                  ? null
+                  : _findLineByNo(_selectedLine!);
+              final selectedKey = (selectedLineObj == null)
+                  ? null
+                  : _lineKey(selectedLineObj);
+              final isSelectedDone =
+                  (selectedKey != null) && doneKeys.contains(selectedKey);
 
               final bottom = (_selectedLine == null)
                   ? null
@@ -135,15 +155,30 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                           width: double.infinity,
                           child: FilledButton.icon(
                             style: FilledButton.styleFrom(
-                              backgroundColor: isSelectedDone ? Colors.black.withValues(alpha: 0.25) : accent,
+                              backgroundColor: isSelectedDone
+                                  ? Colors.black.withValues(alpha: 0.25)
+                                  : accent,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
-                            onPressed: isSelectedDone ? null : _startTrapMonitoring, // ✅
-                            icon: Icon(isSelectedDone ? Icons.check_circle_outline_rounded : Icons.play_arrow_rounded),
+                            onPressed: isSelectedDone
+                                ? null
+                                : _startTrapMonitoring, // ✅
+                            icon: Icon(
+                              isSelectedDone
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
                             label: Text(
-                              isSelectedDone ? 'Línea finalizada' : 'Iniciar monitoreo (trampa)',
-                              style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.2),
+                              isSelectedDone
+                                  ? 'Línea finalizada'
+                                  : 'Iniciar monitoreo (trampa)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
                         ),
@@ -165,13 +200,20 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                             ? Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox(width: 440, child: SingleChildScrollView(child: leftPanel)),
+                                  SizedBox(
+                                    width: 440,
+                                    child: SingleChildScrollView(
+                                      child: leftPanel,
+                                    ),
+                                  ),
                                   const SizedBox(width: 16),
                                   Expanded(child: rightPanel),
                                 ],
                               )
                             : SingleChildScrollView(
-                                padding: EdgeInsets.only(bottom: bottomSafeExtra),
+                                padding: EdgeInsets.only(
+                                  bottom: bottomSafeExtra,
+                                ),
                                 child: Column(
                                   children: [
                                     leftPanel,
@@ -221,14 +263,12 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
     final map = _selectedMap;
     if (map == null) return const [];
 
-    final caps = [...map.capillas]..sort((a, b) => a.startLineNo.compareTo(b.startLineNo));
+    final caps = [...map.capillas]
+      ..sort((a, b) => a.startLineNo.compareTo(b.startLineNo));
 
     return [
       for (final cap in caps)
-        DropdownMenuItem(
-          value: cap,
-          child: Text(_capName(cap)),
-        ),
+        DropdownMenuItem(value: cap, child: Text(_capName(cap))),
     ];
   }
 
@@ -237,7 +277,13 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
     return name.isEmpty ? '(sin nombre)' : name;
   }
 
-  /// Devuelve keys tipo "south_7" "north_14" SOLO para líneas que tengan trampa en la capilla seleccionada.
+  // ✅ Helper: trampas activas solamente
+  List<TrapDef> _activeTrapsOfMap(GreenhouseMap map) {
+    // asume TrapDef.active existe; si no existe aún en tu modelo, dímelo y lo hago compatible
+    return map.traps.where((t) => t.active == true).toList();
+  }
+
+  /// Devuelve keys tipo "south_7" "north_14" SOLO para líneas que tengan TRAMPA ACTIVA en la capilla seleccionada.
   Set<String> _trapLineKeysForSelectedCapilla() {
     final map = _selectedMap;
     final cap = _selectedCapilla;
@@ -250,7 +296,8 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
 
     final out = <String>{};
 
-    for (final t in map.traps) {
+    // ✅ SOLO trampas activas
+    for (final t in _activeTrapsOfMap(map)) {
       for (final cell in t.cells) {
         final k = '${nsToStr(cell.side).toLowerCase()}_${cell.lineNo}';
         if (capValid.contains(k)) out.add(k);
@@ -372,7 +419,7 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
     if (filtered.isEmpty) {
       return _emptyLinesHint(
         accent: AppTheme.pepperGreen,
-        msg: 'Esta capilla no tiene líneas con trampas registradas.',
+        msg: 'Esta capilla no tiene líneas con trampas ACTIVAS.',
       );
     }
 
@@ -398,7 +445,9 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
       padding: const EdgeInsets.only(bottom: 8),
       itemCount: rows,
       shrinkWrap: shrinkWrap,
-      physics: scrollable ? const BouncingScrollPhysics() : const NeverScrollableScrollPhysics(),
+      physics: scrollable
+          ? const BouncingScrollPhysics()
+          : const NeverScrollableScrollPhysics(),
       itemBuilder: (context, i) {
         final s = (i < south.length) ? south[i] : null;
         final n = (i < north.length) ? north[i] : null;
@@ -447,7 +496,9 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
     final k = _lineKey(line);
     if (doneKeys.contains(k)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Esta línea ya está finalizada esta semana.')),
+        const SnackBar(
+          content: Text('Esta línea ya está finalizada esta semana.'),
+        ),
       );
     }
   }
@@ -457,7 +508,10 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.08), width: 1),
+        border: Border.all(
+          color: Colors.black.withValues(alpha: 0.08),
+          width: 1,
+        ),
       ),
     );
   }
@@ -470,8 +524,12 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
   }) {
     final isGreen = line.color.toString().toUpperCase() == "GREEN";
 
-    final baseBg = isGreen ? AppTheme.pepperGreen.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.04);
-    final borderColor = isGreen ? AppTheme.pepperGreen.withValues(alpha: 0.55) : Colors.black.withValues(alpha: 0.18);
+    final baseBg = isGreen
+        ? AppTheme.pepperGreen.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.04);
+    final borderColor = isGreen
+        ? AppTheme.pepperGreen.withValues(alpha: 0.55)
+        : Colors.black.withValues(alpha: 0.18);
 
     final doneBg = Colors.black.withValues(alpha: 0.03);
     final doneBorder = Colors.black.withValues(alpha: 0.18);
@@ -484,10 +542,14 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           decoration: BoxDecoration(
-            color: done ? doneBg : (selected ? baseBg.withValues(alpha: 0.22) : baseBg),
+            color: done
+                ? doneBg
+                : (selected ? baseBg.withValues(alpha: 0.22) : baseBg),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: done ? doneBorder : (selected ? AppTheme.pepperGreen : borderColor),
+              color: done
+                  ? doneBorder
+                  : (selected ? AppTheme.pepperGreen : borderColor),
               width: selected ? 1.6 : 1.1,
             ),
           ),
@@ -503,7 +565,9 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                       size: 16,
                       color: done
                           ? Colors.black.withValues(alpha: 0.55)
-                          : (isGreen ? AppTheme.pepperGreen : Colors.black.withValues(alpha: 0.55)),
+                          : (isGreen
+                                ? AppTheme.pepperGreen
+                                : Colors.black.withValues(alpha: 0.55)),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -513,8 +577,12 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
                         fontSize: 13.5,
                         color: done
                             ? Colors.black.withValues(alpha: 0.55)
-                            : (isGreen ? AppTheme.pepperGreen : Colors.black.withValues(alpha: 0.78)),
-                        decoration: done ? TextDecoration.lineThrough : TextDecoration.none,
+                            : (isGreen
+                                  ? AppTheme.pepperGreen
+                                  : Colors.black.withValues(alpha: 0.78)),
+                        decoration: done
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
                       ),
                     ),
                   ],
@@ -553,13 +621,18 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
       return;
     }
 
-    final trapsEnEsaLinea = map.traps.where((t) {
-      return t.cells.any((c) => c.side == lineObj.side && c.lineNo == lineObj.lineNo);
+    // ✅ SOLO trampas activas en esa línea
+    final trapsEnEsaLinea = _activeTrapsOfMap(map).where((t) {
+      return t.cells.any(
+        (c) => c.side == lineObj.side && c.lineNo == lineObj.lineNo,
+      );
     }).toList();
 
     if (trapsEnEsaLinea.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay trampas registradas en esta línea.')),
+        const SnackBar(
+          content: Text('No hay trampas ACTIVAS registradas en esta línea.'),
+        ),
       );
       return;
     }
@@ -577,7 +650,6 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
       ),
     );
 
-    // ✅ al regresar, repinta para que aparezca "Finalizada" automáticamente
     if (!mounted) return;
     setState(() {});
   }
@@ -599,7 +671,9 @@ class _MonitoraNewTrapMonitoringPageState extends State<MonitoraNewTrapMonitorin
   int _isoWeekNumber(DateTime dt) {
     final thursday = dt.add(Duration(days: 3 - ((dt.weekday + 6) % 7)));
     final firstThursday = DateTime(thursday.year, 1, 4);
-    final firstWeekThursday = firstThursday.add(Duration(days: 3 - ((firstThursday.weekday + 6) % 7)));
+    final firstWeekThursday = firstThursday.add(
+      Duration(days: 3 - ((firstThursday.weekday + 6) % 7)),
+    );
     final diff = thursday.difference(firstWeekThursday).inDays;
     return 1 + (diff ~/ 7);
   }
@@ -612,7 +686,7 @@ class _GreenhouseItem {
 }
 
 // =============================== UI Panels ===============================
-
+// (sin cambios)
 class _LeftPanel extends StatelessWidget {
   final Color accent;
 
@@ -665,7 +739,11 @@ class _LeftPanel extends StatelessWidget {
     );
   }
 
-  Widget _chip({required IconData icon, required String label, required String value}) {
+  Widget _chip({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -680,7 +758,10 @@ class _LeftPanel extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             '$label: ',
-            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black.withValues(alpha: 0.65)),
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: Colors.black.withValues(alpha: 0.65),
+            ),
           ),
           Flexible(
             child: Text(
@@ -696,8 +777,14 @@ class _LeftPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mapLabel = (selectedMapName == null || selectedMapName!.trim().isEmpty) ? '—' : selectedMapName!.trim();
-    final capLabel = (selectedCapName == null || selectedCapName!.trim().isEmpty) ? '—' : selectedCapName!.trim();
+    final mapLabel =
+        (selectedMapName == null || selectedMapName!.trim().isEmpty)
+        ? '—'
+        : selectedMapName!.trim();
+    final capLabel =
+        (selectedCapName == null || selectedCapName!.trim().isEmpty)
+        ? '—'
+        : selectedCapName!.trim();
     final lineLabel = (selectedLine == null) ? '—' : 'Línea $selectedLine';
 
     return Column(
@@ -734,9 +821,17 @@ class _LeftPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Nuevo monitoreo de trampa', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(
+                      'Nuevo monitoreo de trampa',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
                     SizedBox(height: 4),
-                    Text('Selecciona invernadero, capilla y línea con trampa para continuar.'),
+                    Text(
+                      'Selecciona invernadero, capilla y línea con trampa para continuar.',
+                    ),
                   ],
                 ),
               ),
@@ -756,9 +851,21 @@ class _LeftPanel extends StatelessWidget {
             runSpacing: 10,
             spacing: 10,
             children: [
-              _chip(icon: Icons.yard_outlined, label: 'Invernadero', value: mapLabel),
-              _chip(icon: Icons.grid_view_rounded, label: 'Capilla', value: capLabel),
-              _chip(icon: Icons.local_activity_outlined, label: 'Línea', value: lineLabel),
+              _chip(
+                icon: Icons.yard_outlined,
+                label: 'Invernadero',
+                value: mapLabel,
+              ),
+              _chip(
+                icon: Icons.grid_view_rounded,
+                label: 'Capilla',
+                value: capLabel,
+              ),
+              _chip(
+                icon: Icons.local_activity_outlined,
+                label: 'Línea',
+                value: lineLabel,
+              ),
             ],
           ),
         ),
@@ -781,7 +888,10 @@ class _LeftPanel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('1) Invernadero', style: TextStyle(fontWeight: FontWeight.w900, color: accent)),
+              Text(
+                '1) Invernadero',
+                style: TextStyle(fontWeight: FontWeight.w900, color: accent),
+              ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 key: ValueKey('map_${selectedMapId ?? "none"}'),
@@ -792,23 +902,34 @@ class _LeftPanel extends StatelessWidget {
                   icon: Icons.yard_outlined,
                   hint: 'Selecciona',
                 ),
-                items: items.map((x) => DropdownMenuItem(value: x.id, child: Text(x.name))).toList(),
+                items: items
+                    .map(
+                      (x) => DropdownMenuItem(value: x.id, child: Text(x.name)),
+                    )
+                    .toList(),
                 onChanged: (id) {
                   if (id == null) return;
                   onSelectMap(id);
                 },
               ),
               const SizedBox(height: 16),
-              Text('2) Capilla', style: TextStyle(fontWeight: FontWeight.w900, color: accent)),
+              Text(
+                '2) Capilla',
+                style: TextStyle(fontWeight: FontWeight.w900, color: accent),
+              ),
               const SizedBox(height: 10),
               DropdownButtonFormField<CapillaDef>(
-                key: ValueKey('cap_${selectedCapilla?.startLineNo ?? -1}_${selectedCapilla?.endLineNo ?? -1}'),
+                key: ValueKey(
+                  'cap_${selectedCapilla?.startLineNo ?? -1}_${selectedCapilla?.endLineNo ?? -1}',
+                ),
                 initialValue: selectedCapilla,
                 isExpanded: true,
                 decoration: _deco(
                   label: 'Selecciona capilla',
                   icon: Icons.grid_view_rounded,
-                  hint: canSelectCapilla ? 'Selecciona' : 'Primero selecciona un invernadero',
+                  hint: canSelectCapilla
+                      ? 'Selecciona'
+                      : 'Primero selecciona un invernadero',
                 ),
                 items: capillaItems,
                 onChanged: canSelectCapilla ? onSelectCapilla : null,
@@ -816,12 +937,19 @@ class _LeftPanel extends StatelessWidget {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 18, color: Colors.black.withValues(alpha: 0.55)),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: Colors.black.withValues(alpha: 0.55),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Solo se muestran las líneas que tienen trampas (Sur izquierda, Norte derecha).',
-                      style: TextStyle(color: Colors.black.withValues(alpha: 0.62), fontWeight: FontWeight.w700),
+                      'Solo se muestran líneas que tienen TRAMPAS ACTIVAS (Sur izquierda, Norte derecha).',
+                      style: TextStyle(
+                        color: Colors.black.withValues(alpha: 0.62),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
@@ -854,10 +982,7 @@ class _RightPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final ready = selectedMap != null && selectedCapilla != null;
 
-    final body = Padding(
-      padding: const EdgeInsets.all(14),
-      child: linesWidget,
-    );
+    final body = Padding(padding: const EdgeInsets.all(14), child: linesWidget);
 
     return Container(
       width: double.infinity,
@@ -880,7 +1005,9 @@ class _RightPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               border: Border.all(color: accent.withValues(alpha: 0.12)),
             ),
             child: Row(
@@ -892,18 +1019,33 @@ class _RightPanel extends StatelessWidget {
                     color: accent.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(Icons.local_activity_outlined, color: accent, size: 20),
+                  child: Icon(
+                    Icons.local_activity_outlined,
+                    color: accent,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('3) Líneas con trampas', style: TextStyle(fontWeight: FontWeight.w900, color: accent)),
+                      Text(
+                        '3) Líneas con trampas',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: accent,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
-                        ready ? 'Sur (izquierda) • Norte (derecha)' : 'Primero elige invernadero y capilla.',
-                        style: TextStyle(color: Colors.black.withValues(alpha: 0.62), fontWeight: FontWeight.w700),
+                        ready
+                            ? 'Sur (izquierda) • Norte (derecha)'
+                            : 'Primero elige invernadero y capilla.',
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.62),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),

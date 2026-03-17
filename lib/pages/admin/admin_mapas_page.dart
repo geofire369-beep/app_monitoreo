@@ -10,6 +10,8 @@ class AdminMapasPage extends StatelessWidget {
 
   static const _col = 'greenhouses_maps';
 
+  // (Ya no se usa porque quitamos eliminar desde esta vista,
+  // pero lo dejo por si luego lo reactivas)
   Future<bool> _confirmDelete(BuildContext context, String mapName) async {
     final res = await showDialog<bool>(
       context: context,
@@ -86,10 +88,18 @@ class AdminMapasPage extends StatelessWidget {
 
           // Ordenar por updatedAt (ISO string) si existe
           maps.sort((a, b) {
-            final aRaw = (docs.firstWhere((x) => x.id == a.id).data()['updatedAt'] ?? '').toString();
-            final bRaw = (docs.firstWhere((x) => x.id == b.id).data()['updatedAt'] ?? '').toString();
-            final aDt = DateTime.tryParse(aRaw) ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final bDt = DateTime.tryParse(bRaw) ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final aRaw =
+                (docs.firstWhere((x) => x.id == a.id).data()['updatedAt'] ?? '')
+                    .toString();
+            final bRaw =
+                (docs.firstWhere((x) => x.id == b.id).data()['updatedAt'] ?? '')
+                    .toString();
+            final aDt =
+                DateTime.tryParse(aRaw) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final bDt =
+                DateTime.tryParse(bRaw) ??
+                DateTime.fromMillisecondsSinceEpoch(0);
             return bDt.compareTo(aDt);
           });
 
@@ -116,48 +126,14 @@ class AdminMapasPage extends StatelessWidget {
                     'Capillas: ${m.capillas.length}  ·  Postes N:${m.postsNorth} S:${m.postsSouth}  ·  Líneas: ${m.firstLineNo}..${m.lastLineNo}',
                   ),
                   onTap: () async {
-                    // Editar
+                    // ✅ Solo entrar a edición
                     await Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => MapaPage(mapId: m.id)),
                     );
                   },
-                  trailing: Wrap(
-                    spacing: 6,
-                    children: [
-                      IconButton(
-                        tooltip: 'Editar',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => MapaPage(mapId: m.id)),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'Eliminar',
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () async {
-                          final ok = await _confirmDelete(context, m.name);
-                          if (!ok) return;
 
-                          try {
-                            await db.collection(_col).doc(m.id).delete();
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Mapa eliminado ✅')),
-                            );
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error al eliminar: $e')),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
+                  trailing: const Icon(Icons.chevron_right),
                 ),
               );
             },

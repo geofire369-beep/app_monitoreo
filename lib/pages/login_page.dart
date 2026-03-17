@@ -80,8 +80,10 @@ class _LoginPageState extends State<LoginPage>
       duration: const Duration(milliseconds: 420),
     );
     _fade = CurvedAnimation(parent: _introC, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _introC, curve: Curves.easeOutCubic));
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.06),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _introC, curve: Curves.easeOutCubic));
 
     _emailFocus.addListener(() => mounted ? setState(() {}) : null);
     _passFocus.addListener(() => mounted ? setState(() {}) : null);
@@ -198,8 +200,10 @@ class _LoginPageState extends State<LoginPage>
       await _applyAuthPersistence();
       await _saveRememberPreference();
 
-      final cred = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: pass);
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: pass,
+      );
 
       final user = cred.user;
       if (user == null) {
@@ -306,8 +310,9 @@ class _LoginPageState extends State<LoginPage>
       HapticFeedback.lightImpact();
       if (!mounted) return;
 
-      final nextRoute =
-          (role == 'admin') ? RouteNames.homeAdmin : RouteNames.homeMonitora;
+      final nextRoute = (role == 'admin')
+          ? RouteNames.homeAdmin
+          : RouteNames.homeMonitora;
       Navigator.of(context).pushReplacementNamed(nextRoute);
     } on FirebaseAuthException catch (e) {
       final msg = switch (e.code) {
@@ -413,8 +418,7 @@ class _LoginPageState extends State<LoginPage>
       barrierLabel: 'forgot_password',
       barrierColor: Colors.black.withValues(alpha: 0.55),
       transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder:
-          (BuildContext context, Animation<double> _, Animation<double> __) {
+      pageBuilder: (BuildContext context, Animation<double> _, Animation<double> __) {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             final focused = emailFocus.hasFocus;
@@ -453,8 +457,10 @@ class _LoginPageState extends State<LoginPage>
                                       color: orange.withValues(alpha: 0.30),
                                     ),
                                   ),
-                                  child: Icon(Icons.lock_reset_rounded,
-                                      color: orange),
+                                  child: Icon(
+                                    Icons.lock_reset_rounded,
+                                    color: orange,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 const Expanded(
@@ -512,8 +518,10 @@ class _LoginPageState extends State<LoginPage>
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
                                   hintText: 'correo@gmail.com',
-                                  prefixIcon: Icon(Icons.email_outlined,
-                                      color: orange),
+                                  prefixIcon: Icon(
+                                    Icons.email_outlined,
+                                    color: orange,
+                                  ),
                                 ),
                               ),
                             ),
@@ -528,17 +536,20 @@ class _LoginPageState extends State<LoginPage>
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: orange,
                                       side: BorderSide(
-                                          color: orange.withValues(alpha: 0.55)),
+                                        color: orange.withValues(alpha: 0.55),
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
+                                        vertical: 14,
+                                      ),
                                     ),
                                     child: const Text(
                                       'Cancelar',
-                                      style:
-                                          TextStyle(fontWeight: FontWeight.w900),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -556,8 +567,9 @@ class _LoginPageState extends State<LoginPage>
                                           backgroundColor: Colors.transparent,
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           padding: EdgeInsets.zero,
                                         ),
@@ -568,8 +580,9 @@ class _LoginPageState extends State<LoginPage>
                                               end: Alignment.centerRight,
                                               colors: [orange, orange2],
                                             ),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           child: Container(
                                             alignment: Alignment.center,
@@ -579,14 +592,16 @@ class _LoginPageState extends State<LoginPage>
                                                     width: 18,
                                                     child:
                                                         CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
-                                                    ),
+                                                          strokeWidth: 2,
+                                                          color: Colors.white,
+                                                        ),
                                                   )
                                                 : const Text(
                                                     'Enviar enlace',
                                                     style: TextStyle(
-                                                        fontWeight: FontWeight.w900),
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
                                                   ),
                                           ),
                                         ),
@@ -608,7 +623,10 @@ class _LoginPageState extends State<LoginPage>
         );
       },
       transitionBuilder: (context, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -638,16 +656,19 @@ class _LoginPageState extends State<LoginPage>
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder:
           (BuildContext context, Animation<double> _, Animation<double> __) {
-        return _StatusPopup(
-          ok: ok,
-          title: title,
-          message: message,
-          accent: accent,
-          gradient: gradient,
-        );
-      },
+            return _StatusPopup(
+              ok: ok,
+              title: title,
+              message: message,
+              accent: accent,
+              gradient: gradient,
+            );
+          },
       transitionBuilder: (context, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -671,8 +692,9 @@ class _LoginPageState extends State<LoginPage>
           child: ChoiceChip(
             selected: _role == UserRole.monitora,
             label: const Text('Monitores'),
-            onSelected:
-                _loading ? null : (_) => setState(() => _role = UserRole.monitora),
+            onSelected: _loading
+                ? null
+                : (_) => setState(() => _role = UserRole.monitora),
             backgroundColor: Colors.white.withValues(alpha: 0.92),
             selectedColor: green.withValues(alpha: 0.16),
             side: BorderSide(
@@ -698,8 +720,9 @@ class _LoginPageState extends State<LoginPage>
           child: ChoiceChip(
             selected: _role == UserRole.admin,
             label: const Text('Administrativos'),
-            onSelected:
-                _loading ? null : (_) => setState(() => _role = UserRole.admin),
+            onSelected: _loading
+                ? null
+                : (_) => setState(() => _role = UserRole.admin),
             backgroundColor: Colors.white.withValues(alpha: 0.92),
             selectedColor: red.withValues(alpha: 0.16),
             side: BorderSide(
@@ -730,11 +753,7 @@ class _LoginPageState extends State<LoginPage>
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            _accent.withValues(alpha: 0.12),
-            Colors.white,
-            Colors.white,
-          ],
+          colors: [_accent.withValues(alpha: 0.12), Colors.white, Colors.white],
         ),
       ),
     );
@@ -764,7 +783,8 @@ class _LoginPageState extends State<LoginPage>
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                       child: Container(
-                          color: Colors.white.withValues(alpha: 0.62)),
+                        color: Colors.white.withValues(alpha: 0.62),
+                      ),
                     ),
                   ),
                 ],
@@ -784,8 +804,9 @@ class _LoginPageState extends State<LoginPage>
                     physics: const ClampingScrollPhysics(),
                     padding: const EdgeInsets.all(18),
                     child: ConstrainedBox(
-                      constraints:
-                          BoxConstraints(minHeight: constraints.maxHeight),
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 440),
@@ -798,16 +819,16 @@ class _LoginPageState extends State<LoginPage>
                                 children: [
                                   const SizedBox(height: 14),
                                   _LogoCard(
-                                      color: _accent, assetPath: _logoAsset),
+                                    color: _accent,
+                                    assetPath: _logoAsset,
+                                  ),
                                   const SizedBox(height: 16),
                                   Text(
                                     'MONITOREO GEOPÓNICA',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w900,
-                                        ),
+                                        ?.copyWith(fontWeight: FontWeight.w900),
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
@@ -816,7 +837,9 @@ class _LoginPageState extends State<LoginPage>
                                         .textTheme
                                         .bodyMedium
                                         ?.copyWith(
-                                          color: _accent.withValues(alpha: 0.88),
+                                          color: _accent.withValues(
+                                            alpha: 0.88,
+                                          ),
                                           fontWeight: FontWeight.w700,
                                         ),
                                     textAlign: TextAlign.center,
@@ -826,13 +849,16 @@ class _LoginPageState extends State<LoginPage>
                                   const SizedBox(height: 14),
                                   Card(
                                     elevation: 0,
-                                    shadowColor:
-                                        Colors.black.withValues(alpha: 0.12),
+                                    shadowColor: Colors.black.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(22),
                                       side: BorderSide(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.07)),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.07,
+                                        ),
+                                      ),
                                     ),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16),
@@ -893,11 +919,15 @@ class _LoginPageState extends State<LoginPage>
                                               suffix: IconButton(
                                                 onPressed: _loading
                                                     ? null
-                                                    : () => setState(() =>
-                                                        _obscure = !_obscure),
-                                                icon: Icon(_obscure
-                                                    ? Icons.visibility
-                                                    : Icons.visibility_off),
+                                                    : () => setState(
+                                                        () => _obscure =
+                                                            !_obscure,
+                                                      ),
+                                                icon: Icon(
+                                                  _obscure
+                                                      ? Icons.visibility
+                                                      : Icons.visibility_off,
+                                                ),
                                                 color: _accent,
                                               ),
                                               onSubmitted: (_) => _submit(),
@@ -907,41 +937,100 @@ class _LoginPageState extends State<LoginPage>
                                               width: double.infinity,
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: Colors.black
-                                                    .withValues(alpha: 0.03),
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.03,
+                                                ),
                                                 borderRadius:
                                                     BorderRadius.circular(16),
                                                 border: Border.all(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.08)),
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.08),
+                                                ),
                                               ),
                                               child: Row(
                                                 children: [
-                                                  Icon(Icons.lock_clock_outlined,
-                                                      color: _accent),
+                                                  Icon(
+                                                    Icons.lock_clock_outlined,
+                                                    color: _accent,
+                                                  ),
                                                   const SizedBox(width: 10),
                                                   const Expanded(
                                                     child: Text(
                                                       'Mantener sesión activa',
                                                       style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w900),
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                      ),
                                                     ),
                                                   ),
                                                   Switch(
                                                     value: _rememberMe,
-                                                    activeThumbColor: _accent,
                                                     onChanged: _loading
                                                         ? null
                                                         : (v) async {
-                                                            setState(() =>
-                                                                _rememberMe = v);
+                                                            setState(
+                                                              () =>
+                                                                  _rememberMe =
+                                                                      v,
+                                                            );
                                                             await _saveRememberPreference();
                                                             await _applyAuthPersistence();
                                                           },
+
+                                                    // ✅ Depende del rol (verde monitora / rojo admin)
+                                                    thumbColor:
+                                                        WidgetStateProperty.resolveWith<
+                                                          Color?
+                                                        >((states) {
+                                                          if (states.contains(
+                                                            WidgetState
+                                                                .disabled,
+                                                          )) {
+                                                            return Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.25,
+                                                                );
+                                                          }
+                                                          if (states.contains(
+                                                            WidgetState
+                                                                .selected,
+                                                          )) {
+                                                            return _accent; // ON
+                                                          }
+                                                          return Colors
+                                                              .white; // OFF
+                                                        }),
+                                                    trackColor:
+                                                        WidgetStateProperty.resolveWith<
+                                                          Color?
+                                                        >((states) {
+                                                          if (states.contains(
+                                                            WidgetState
+                                                                .disabled,
+                                                          )) {
+                                                            return Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.12,
+                                                                );
+                                                          }
+                                                          if (states.contains(
+                                                            WidgetState
+                                                                .selected,
+                                                          )) {
+                                                            return _accent
+                                                                .withValues(
+                                                                  alpha: 0.35,
+                                                                ); // ON track
+                                                          }
+                                                          return Colors.black
+                                                              .withValues(
+                                                                alpha: 0.20,
+                                                              ); // OFF track
+                                                        }),
                                                   ),
                                                 ],
                                               ),
@@ -953,44 +1042,50 @@ class _LoginPageState extends State<LoginPage>
                                                 width: double.infinity,
                                                 height: 48,
                                                 child: FilledButton(
-                                                  onPressed:
-                                                      _loading ? null : _submit,
-                                                  style:
-                                                      FilledButton.styleFrom(
+                                                  onPressed: _loading
+                                                      ? null
+                                                      : _submit,
+                                                  style: FilledButton.styleFrom(
                                                     backgroundColor: _accent,
                                                     foregroundColor:
                                                         Colors.white,
-                                                    shape:
-                                                        RoundedRectangleBorder(
+                                                    shape: RoundedRectangleBorder(
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                              16),
+                                                            16,
+                                                          ),
                                                     ),
                                                   ),
                                                   child: AnimatedSwitcher(
                                                     duration: const Duration(
-                                                        milliseconds: 160),
+                                                      milliseconds: 160,
+                                                    ),
                                                     child: _loading
                                                         ? const SizedBox(
                                                             key: ValueKey(
-                                                                'loading'),
+                                                              'loading',
+                                                            ),
                                                             height: 20,
                                                             width: 20,
                                                             child:
                                                                 CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
                                                           )
                                                         : Text(
                                                             'Entrar como $_roleLabel',
                                                             key: const ValueKey(
-                                                                'text'),
-                                                            style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w900),
+                                                              'text',
+                                                            ),
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w900,
+                                                                ),
                                                           ),
                                                   ),
                                                 ),
@@ -1006,8 +1101,8 @@ class _LoginPageState extends State<LoginPage>
                                               child: const Text(
                                                 '¿Olvidaste tu contraseña?',
                                                 style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w800),
+                                                  fontWeight: FontWeight.w800,
+                                                ),
                                               ),
                                             ),
                                           ],
@@ -1022,8 +1117,9 @@ class _LoginPageState extends State<LoginPage>
                                         .textTheme
                                         .bodyMedium
                                         ?.copyWith(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.70),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.70,
+                                          ),
                                           fontWeight: FontWeight.w600,
                                         ),
                                     textAlign: TextAlign.center,
@@ -1051,10 +1147,7 @@ class _LogoCard extends StatelessWidget {
   final Color color;
   final String assetPath;
 
-  const _LogoCard({
-    required this.color,
-    required this.assetPath,
-  });
+  const _LogoCard({required this.color, required this.assetPath});
 
   @override
   Widget build(BuildContext context) {
@@ -1150,7 +1243,7 @@ class _FancyField extends StatelessWidget {
                   color: accent.withValues(alpha: 0.18),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
-                )
+                ),
               ]
             : [],
       ),
@@ -1236,8 +1329,9 @@ class _HoverScaleState extends State<_HoverScale> {
 
   @override
   Widget build(BuildContext context) {
-    final scale =
-        !widget.enabled ? 1.0 : (_down ? 0.985 : (_hover ? 1.03 : 1.0));
+    final scale = !widget.enabled
+        ? 1.0
+        : (_down ? 0.985 : (_hover ? 1.03 : 1.0));
 
     return MouseRegion(
       onEnter: (_) =>
@@ -1246,7 +1340,9 @@ class _HoverScaleState extends State<_HoverScale> {
           _canHover && widget.enabled ? setState(() => _hover = false) : null,
       child: GestureDetector(
         onTapDown: widget.enabled ? (_) => setState(() => _down = true) : null,
-        onTapCancel: widget.enabled ? () => setState(() => _down = false) : null,
+        onTapCancel: widget.enabled
+            ? () => setState(() => _down = false)
+            : null,
         onTapUp: widget.enabled ? (_) => setState(() => _down = false) : null,
         child: AnimatedScale(
           scale: scale,
@@ -1343,7 +1439,10 @@ class _StatusPopupState extends State<_StatusPopup>
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
     _scale = CurvedAnimation(parent: _c, curve: Curves.elasticOut);
     _shake = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0, end: -6), weight: 1),
@@ -1374,7 +1473,9 @@ class _StatusPopupState extends State<_StatusPopup>
       height: 88,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: widget.gradient ? LinearGradient(colors: [orange, orange2]) : null,
+        gradient: widget.gradient
+            ? LinearGradient(colors: [orange, orange2])
+            : null,
         color: widget.gradient ? null : orange,
       ),
       child: Icon(icon, color: Colors.white, size: 54),
@@ -1395,7 +1496,9 @@ class _StatusPopupState extends State<_StatusPopup>
               child: Card(
                 elevation: 14,
                 shadowColor: Colors.black.withValues(alpha: 0.25),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: Column(
@@ -1406,13 +1509,19 @@ class _StatusPopupState extends State<_StatusPopup>
                       Text(
                         widget.title,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         widget.message,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.black.withValues(alpha: 0.72)),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black.withValues(alpha: 0.72),
+                        ),
                       ),
                       const SizedBox(height: 14),
                       SizedBox(
@@ -1424,15 +1533,22 @@ class _StatusPopupState extends State<_StatusPopup>
                             backgroundColor: Colors.transparent,
                             foregroundColor: Colors.white,
                             padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                           child: Ink(
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(colors: [orange, orange2]),
+                              gradient: LinearGradient(
+                                colors: [orange, orange2],
+                              ),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Center(
-                              child: Text('OK', style: TextStyle(fontWeight: FontWeight.w900)),
+                              child: Text(
+                                'OK',
+                                style: TextStyle(fontWeight: FontWeight.w900),
+                              ),
                             ),
                           ),
                         ),

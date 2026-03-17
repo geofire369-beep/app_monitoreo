@@ -42,7 +42,7 @@ String colorNorm(String v) {
 
 String colorOpposite(String v) => colorNorm(v) == "GREEN" ? "WHITE" : "GREEN";
 
-/// NUEVO: línea explícita en BD con lado (N/S) + color (WHITE/GREEN)
+/// Línea explícita en BD con lado (N/S) + color (WHITE/GREEN)
 class CapLine {
   final int lineNo;
   final NS side;
@@ -59,21 +59,45 @@ class CapLine {
   bool get isGreen => colorNorm(color) == "GREEN";
 
   Map<String, dynamic> toMap() => {
-        "lineNo": lineNo,
-        "side": nsToStr(side),
-        "color": colorNorm(color),
-      };
+    "lineNo": lineNo,
+    "side": nsToStr(side),
+    "color": colorNorm(color),
+  };
 
   static CapLine fromMap(Map<String, dynamic> m) => CapLine(
-        lineNo: (m["lineNo"] ?? 0) as int,
-        side: nsFromStr((m["side"] ?? "NORTH").toString()),
-        color: colorNorm((m["color"] ?? "WHITE").toString()),
-      );
+    lineNo: (m["lineNo"] ?? 0) as int,
+    side: nsFromStr((m["side"] ?? "NORTH").toString()),
+    color: colorNorm((m["color"] ?? "WHITE").toString()),
+  );
+}
+
+// ========================= PLANTAS POR SEMANA =========================
+String weekKeyFromDate(DateTime d) {
+  final date = DateTime(d.year, d.month, d.day);
+  final weekday = date.weekday; // Mon=1..Sun=7
+  final thursday = date.add(Duration(days: (4 - weekday)));
+  final firstThursday = DateTime(thursday.year, 1, 4);
+  final firstThursdayWeekday = firstThursday.weekday;
+  final firstIsoThursday = firstThursday.add(
+    Duration(days: (4 - firstThursdayWeekday)),
+  );
+
+  final weekNumber = 1 + ((thursday.difference(firstIsoThursday).inDays) ~/ 7);
+  final weekYear = thursday.year;
+
+  final ww = weekNumber.toString().padLeft(2, '0');
+  return "$weekYear-W$ww";
+}
+
+int? weeklyPlantsValue(Map<String, int> weeklyPlants, DateTime date) {
+  final k = weekKeyFromDate(date);
+  return weeklyPlants[k];
 }
 
 // ========================= TRAMPAS =========================
 
-String trapCellKey(NS side, int lineNo, int poste) => '${nsToStr(side)}_${lineNo}_${poste}';
+String trapCellKey(NS side, int lineNo, int poste) =>
+    '${nsToStr(side)}_${lineNo}_${poste}';
 
 class TrapCell {
   final NS side;
@@ -89,42 +113,49 @@ class TrapCell {
   String get key => trapCellKey(side, lineNo, poste);
 
   Map<String, dynamic> toMap() => {
-        "side": nsToStr(side),
-        "lineNo": lineNo,
-        "poste": poste,
-      };
+    "side": nsToStr(side),
+    "lineNo": lineNo,
+    "poste": poste,
+  };
 
   static TrapCell fromMap(Map<String, dynamic> m) => TrapCell(
-        side: nsFromStr((m["side"] ?? "NORTH").toString()),
-        lineNo: (m["lineNo"] ?? 0) as int,
-        poste: (m["poste"] ?? 0) as int,
-      );
+    side: nsFromStr((m["side"] ?? "NORTH").toString()),
+    lineNo: (m["lineNo"] ?? 0) as int,
+    poste: (m["poste"] ?? 0) as int,
+  );
 }
 
 class TrapDef {
   final String id;
   String name;
+
+  /// ✅ NUEVO: activa / inactiva
+  bool active;
+
   List<TrapCell> cells;
 
   TrapDef({
     required this.id,
     required this.name,
+    this.active = true,
     required this.cells,
   });
 
   Map<String, dynamic> toMap() => {
-        "id": id,
-        "name": name.trim(),
-        "cells": cells.map((c) => c.toMap()).toList(),
-      };
+    "id": id,
+    "name": name.trim(),
+    "active": active,
+    "cells": cells.map((c) => c.toMap()).toList(),
+  };
 
   static TrapDef fromMap(Map<String, dynamic> m) => TrapDef(
-        id: (m["id"] ?? "").toString(),
-        name: (m["name"] ?? "").toString(),
-        cells: ((m["cells"] ?? const []) as List)
-            .map((e) => TrapCell.fromMap(Map<String, dynamic>.from(e)))
-            .toList(),
-      );
+    id: (m["id"] ?? "").toString(),
+    name: (m["name"] ?? "").toString(),
+    active: (m["active"] ?? true) == true,
+    cells: ((m["cells"] ?? const []) as List)
+        .map((e) => TrapCell.fromMap(Map<String, dynamic>.from(e)))
+        .toList(),
+  );
 }
 
 /// Segmento dentro de una capilla (compatibilidad / UI).
@@ -132,10 +163,7 @@ class CapSegment {
   CapSideMode mode;
   int lineCount;
 
-  CapSegment({
-    required this.mode,
-    required this.lineCount,
-  });
+  CapSegment({required this.mode, required this.lineCount});
 
   int get columnCount {
     if (mode == CapSideMode.bothPaired) {
@@ -145,14 +173,14 @@ class CapSegment {
   }
 
   Map<String, dynamic> toMap() => {
-        "mode": capModeToStr(mode),
-        "lineCount": lineCount,
-      };
+    "mode": capModeToStr(mode),
+    "lineCount": lineCount,
+  };
 
   static CapSegment fromMap(Map<String, dynamic> m) => CapSegment(
-        mode: capModeFromStr((m["mode"] ?? "BOTH_PAIRED").toString()),
-        lineCount: (m["lineCount"] ?? 0) as int,
-      );
+    mode: capModeFromStr((m["mode"] ?? "BOTH_PAIRED").toString()),
+    lineCount: (m["lineCount"] ?? 0) as int,
+  );
 }
 
 class CapillaDef {
@@ -162,8 +190,6 @@ class CapillaDef {
   int startLineNo;
   List<CapSegment> segments;
 
-  /// NUEVO: en BD puede venir lines[] (con side/color).
-  /// Si no viene, se genera desde segments con el contexto del mapa.
   List<CapLine> lines;
 
   CapillaDef({
@@ -180,8 +206,9 @@ class CapillaDef {
 
   int get endLineNoResolved {
     if (lines.isNotEmpty) {
-      final maxLine =
-          lines.map((e) => e.lineNo).fold<int>(startLineNo, (a, b) => b > a ? b : a);
+      final maxLine = lines
+          .map((e) => e.lineNo)
+          .fold<int>(startLineNo, (a, b) => b > a ? b : a);
       return maxLine;
     }
     return endLineNo;
@@ -207,14 +234,13 @@ class CapillaDef {
     return cols;
   }
 
-  /// Guardado: siempre escribir lines[] ya resueltas con color/lado
   Map<String, dynamic> toMapWithContext(GreenhouseMap ctx) => {
-        "id": id,
-        "name": name,
-        "startLineNo": startLineNo,
-        "segments": segments.map((s) => s.toMap()).toList(),
-        "lines": ctx.capLinesWithColor(this).map((l) => l.toMap()).toList(),
-      };
+    "id": id,
+    "name": name,
+    "startLineNo": startLineNo,
+    "segments": segments.map((s) => s.toMap()).toList(),
+    "lines": ctx.capLinesWithColor(this).map((l) => l.toMap()).toList(),
+  };
 
   static CapillaDef fromMap(Map<String, dynamic> m) {
     final id = (m["id"] ?? "").toString();
@@ -223,11 +249,12 @@ class CapillaDef {
 
     final segs = <CapSegment>[];
     if (m.containsKey("segments")) {
-      segs.addAll(((m["segments"] ?? const []) as List)
-          .map((e) => CapSegment.fromMap(Map<String, dynamic>.from(e)))
-          .toList());
+      segs.addAll(
+        ((m["segments"] ?? const []) as List)
+            .map((e) => CapSegment.fromMap(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
     } else {
-      // legacy: mode + lineCount
       final oldMode = capModeFromStr((m["mode"] ?? "BOTH_PAIRED").toString());
       final oldCount = (m["lineCount"] ?? 0) as int;
       segs.add(CapSegment(mode: oldMode, lineCount: oldCount));
@@ -235,9 +262,11 @@ class CapillaDef {
 
     final ls = <CapLine>[];
     if (m.containsKey("lines")) {
-      ls.addAll(((m["lines"] ?? const []) as List)
-          .map((e) => CapLine.fromMap(Map<String, dynamic>.from(e)))
-          .toList());
+      ls.addAll(
+        ((m["lines"] ?? const []) as List)
+            .map((e) => CapLine.fromMap(Map<String, dynamic>.from(e)))
+            .toList(),
+      );
     }
 
     return CapillaDef(
@@ -249,13 +278,12 @@ class CapillaDef {
     );
   }
 
-  /// Resuelve side (sin depender del color guardado).
-  /// El color se calcula a nivel GreenhouseMap para que no se rompa al mezclar segmentos.
   List<_SideLine> resolvedSideLines(GreenhouseMap ctx) {
-    // Si ya vienen lines en BD, usar side de ahí.
     if (lines.isNotEmpty) {
       final sorted = [...lines]..sort((a, b) => a.lineNo.compareTo(b.lineNo));
-      return sorted.map((e) => _SideLine(lineNo: e.lineNo, side: e.side)).toList();
+      return sorted
+          .map((e) => _SideLine(lineNo: e.lineNo, side: e.side))
+          .toList();
     }
 
     int cursor = startLineNo;
@@ -282,7 +310,6 @@ class CapillaDef {
     return out;
   }
 
-  /// Columnas derivadas (para pintar)
   List<_CapColumn> buildColumns(GreenhouseMap ctx) {
     final ls = resolvedSideLines(ctx);
     final sorted = [...ls]..sort((a, b) => a.lineNo.compareTo(b.lineNo));
@@ -300,10 +327,12 @@ class CapillaDef {
         cols.add(_CapColumn(northLineNo: northLine, southLineNo: southLine));
         i += 2;
       } else {
-        cols.add(_CapColumn(
-          northLineNo: cur.side == NS.north ? cur.lineNo : null,
-          southLineNo: cur.side == NS.south ? cur.lineNo : null,
-        ));
+        cols.add(
+          _CapColumn(
+            northLineNo: cur.side == NS.north ? cur.lineNo : null,
+            southLineNo: cur.side == NS.south ? cur.lineNo : null,
+          ),
+        );
         i += 1;
       }
     }
@@ -333,13 +362,10 @@ class GreenhouseMap {
 
   int firstLineNo;
 
-  /// Cuando hay ambos lados, define si la numeración inicia en NORTH o SOUTH
   NS lineStartSide;
 
   bool stripedLines;
 
-  /// Color de la línea inicial EN el lado lineStartSide
-  /// "WHITE" | "GREEN"
   String stripedStart;
 
   List<CapillaDef> capillas;
@@ -347,14 +373,20 @@ class GreenhouseMap {
   Set<String> inactiveN;
   Set<String> inactiveS;
 
-  /// NUEVO: trampas
   List<TrapDef> traps;
 
   List<_GlobalColumn>? _colCache;
-
   Map<int, _LineMeta>? _lineMetaCache;
-
   Map<String, _TrapIndexEntry>? _trapIndexCache;
+
+  /// total de plantas por semana
+  Map<String, int> weeklyPlants;
+
+  /// ✅ NUEVO: total trampas activas por semana (weekKey -> count)
+  Map<String, int> weeklyActiveTraps;
+
+  Map<int, NS>? _sideCache;
+  Map<int, bool>? _pairedLineCache;
 
   GreenhouseMap({
     required this.id,
@@ -369,10 +401,17 @@ class GreenhouseMap {
     Set<String>? inactiveN,
     Set<String>? inactiveS,
     List<TrapDef>? traps,
-  })  : capillas = capillas ?? <CapillaDef>[],
-        inactiveN = inactiveN ?? <String>{},
-        inactiveS = inactiveS ?? <String>{},
-        traps = traps ?? <TrapDef>[];
+    Map<String, int>? weeklyPlants,
+    Map<String, int>? weeklyActiveTraps,
+  }) : capillas = capillas ?? <CapillaDef>[],
+       inactiveN = inactiveN ?? <String>{},
+       inactiveS = inactiveS ?? <String>{},
+       traps = traps ?? <TrapDef>[],
+       weeklyPlants = weeklyPlants ?? <String, int>{},
+       weeklyActiveTraps = weeklyActiveTraps ?? <String, int>{};
+
+  // ✅ count traps active (por definición)
+  int get activeTrapCount => traps.where((t) => t.active).length;
 
   void invalidateTrapCache() {
     _trapIndexCache = null;
@@ -382,6 +421,8 @@ class GreenhouseMap {
     _colCache = null;
     _lineMetaCache = null;
     _trapIndexCache = null;
+    _sideCache = null;
+    _pairedLineCache = null;
   }
 
   static String cellKey(int poste, int lineNo) => "${poste}_$lineNo";
@@ -412,14 +453,59 @@ class GreenhouseMap {
     return capillas.last.endLineNoResolved;
   }
 
-  /// Define lado para lineNo si el segmento es BOTH (numeración del invernadero)
   NS sideForLine(int lineNo) {
     if (postsNorth <= 0 && postsSouth > 0) return NS.south;
     if (postsSouth <= 0 && postsNorth > 0) return NS.north;
 
+    _ensureSideAndKindCache();
+    final cached = _sideCache?[lineNo];
+    if (cached != null) return cached;
+
     final off = lineNo - firstLineNo;
     if (off % 2 == 0) return lineStartSide;
     return nsOpposite(lineStartSide);
+  }
+
+  bool isPairedLine(int lineNo) {
+    _ensureSideAndKindCache();
+    return _pairedLineCache?[lineNo] == true;
+  }
+
+  void _ensureSideAndKindCache() {
+    if (_sideCache != null && _pairedLineCache != null) return;
+
+    final sideMap = <int, NS>{};
+    final pairedMap = <int, bool>{};
+
+    int bothCounter = 0;
+
+    for (final cap in capillas) {
+      int cursor = cap.startLineNo;
+
+      for (final seg in cap.segments) {
+        for (int i = 0; i < seg.lineCount; i++) {
+          final ln = cursor + i;
+
+          if (seg.mode == CapSideMode.northOnly) {
+            sideMap[ln] = NS.north;
+            pairedMap[ln] = false;
+          } else if (seg.mode == CapSideMode.southOnly) {
+            sideMap[ln] = NS.south;
+            pairedMap[ln] = false;
+          } else {
+            sideMap[ln] = (bothCounter % 2 == 0)
+                ? lineStartSide
+                : nsOpposite(lineStartSide);
+            pairedMap[ln] = true;
+            bothCounter++;
+          }
+        }
+        cursor += seg.lineCount;
+      }
+    }
+
+    _sideCache = sideMap;
+    _pairedLineCache = pairedMap;
   }
 
   void _ensureColCache() {
@@ -429,11 +515,13 @@ class GreenhouseMap {
     for (final cap in capillas) {
       final local = cap.buildColumns(this);
       for (final c in local) {
-        cols.add(_GlobalColumn(
-          capilla: cap,
-          northLineNo: c.northLineNo,
-          southLineNo: c.southLineNo,
-        ));
+        cols.add(
+          _GlobalColumn(
+            capilla: cap,
+            northLineNo: c.northLineNo,
+            southLineNo: c.southLineNo,
+          ),
+        );
       }
     }
     _colCache = cols;
@@ -461,7 +549,11 @@ class GreenhouseMap {
     final idx = <String, _TrapIndexEntry>{};
     for (final t in traps) {
       for (final c in t.cells) {
-        idx[c.key] = _TrapIndexEntry(trapId: t.id, trapName: t.name);
+        idx[c.key] = _TrapIndexEntry(
+          trapId: t.id,
+          trapName: t.name,
+          active: t.active,
+        );
       }
     }
     _trapIndexCache = idx;
@@ -477,24 +569,30 @@ class GreenhouseMap {
     return _trapIndexCache?[trapCellKey(ns, lineNo, poste)]?.trapId;
   }
 
-  bool isTrapCell(NS ns, int poste, int lineNo) => trapIdAt(ns, poste, lineNo) != null;
+  bool isTrapCell(NS ns, int poste, int lineNo) =>
+      trapIdAt(ns, poste, lineNo) != null;
 
-  /// =========================================================
-  ///  COLORES CORRECTOS (UNO Y UNO POR LADO)
-  ///
-  ///  stripedStart = color de la línea inicial en lineStartSide.
-  ///  El otro lado siempre inicia con el color opuesto.
-  ///
-  ///  Luego, cada lado alterna: WHITE/GREEN/WHITE/GREEN...
-  ///  CONTANDO las líneas reales de ese lado (incluye segmentos soloN o soloS).
-  /// =========================================================
+  bool isTrapCellActive(NS ns, int poste, int lineNo) {
+    _ensureTrapIndex();
+    final e = _trapIndexCache?[trapCellKey(ns, lineNo, poste)];
+    return e != null && e.active;
+  }
+
+  TrapDef? trapById(String trapId) {
+    for (final t in traps) {
+      if (t.id == trapId) return t;
+    }
+    return null;
+  }
+
+  // ========================= COLORES (FIX) =========================
+
   void _ensureLineMeta() {
     if (_lineMetaCache != null) return;
 
     final meta = <int, _LineMeta>{};
 
     if (!stripedLines) {
-      // Aun así guardamos side, por si se pide
       final all = <_SideLine>[];
       for (final cap in capillas) {
         all.addAll(cap.resolvedSideLines(this));
@@ -507,29 +605,7 @@ class GreenhouseMap {
       return;
     }
 
-    // start colors por lado
-    final startColorStartSide = colorNorm(stripedStart);
-
-    String northStart;
-    String southStart;
-
-    // Si solo hay un lado, ese lado toma stripedStart (coherente con la UI)
-    if (postsNorth > 0 && postsSouth <= 0) {
-      northStart = startColorStartSide;
-      southStart = colorOpposite(northStart);
-    } else if (postsSouth > 0 && postsNorth <= 0) {
-      southStart = startColorStartSide;
-      northStart = colorOpposite(southStart);
-    } else {
-      // Ambos lados
-      if (lineStartSide == NS.north) {
-        northStart = startColorStartSide;
-        southStart = colorOpposite(northStart);
-      } else {
-        southStart = startColorStartSide;
-        northStart = colorOpposite(southStart);
-      }
-    }
+    final startColor = colorNorm(stripedStart);
 
     final all = <_SideLine>[];
     for (final cap in capillas) {
@@ -537,17 +613,54 @@ class GreenhouseMap {
     }
     all.sort((a, b) => a.lineNo.compareTo(b.lineNo));
 
+    bool nSeen = false;
+    bool sSeen = false;
+
+    String? lastNorthColor;
+    String? lastSouthColor;
+
     int nCount = 0;
     int sCount = 0;
 
+    String colorByCount(int count, String start) {
+      return (count % 2 == 0) ? start : colorOpposite(start);
+    }
+
+    String? northStart;
+    String? southStart;
+
     for (final l in all) {
       if (l.side == NS.north) {
-        final c = (nCount % 2 == 0) ? northStart : colorOpposite(northStart);
+        if (!nSeen) {
+          nSeen = true;
+
+          if (lineStartSide == NS.north) {
+            northStart = startColor;
+          } else {
+            final base = lastSouthColor ?? startColor;
+            northStart = colorOpposite(base);
+          }
+        }
+
+        final c = colorByCount(nCount, northStart!);
         meta[l.lineNo] = _LineMeta(side: NS.north, color: c);
+        lastNorthColor = c;
         nCount++;
       } else {
-        final c = (sCount % 2 == 0) ? southStart : colorOpposite(southStart);
+        if (!sSeen) {
+          sSeen = true;
+
+          if (lineStartSide == NS.south) {
+            southStart = startColor;
+          } else {
+            final base = lastNorthColor ?? startColor;
+            southStart = colorOpposite(base);
+          }
+        }
+
+        final c = colorByCount(sCount, southStart!);
         meta[l.lineNo] = _LineMeta(side: NS.south, color: c);
+        lastSouthColor = c;
         sCount++;
       }
     }
@@ -555,53 +668,53 @@ class GreenhouseMap {
     _lineMetaCache = meta;
   }
 
-  /// Devuelve true si la línea es VERDE (según patrón real del mapa)
   bool isGreenLine(int lineNo) {
     _ensureLineMeta();
     return _lineMetaCache?[lineNo]?.color == "GREEN";
   }
 
-  /// Devuelve "WHITE"|"GREEN" (según patrón real del mapa)
   String lineColor(int lineNo) {
     _ensureLineMeta();
     return _lineMetaCache?[lineNo]?.color ?? "WHITE";
   }
 
-  /// Devuelve lado (si existe)
   NS lineSide(int lineNo) {
     _ensureLineMeta();
     return _lineMetaCache?[lineNo]?.side ?? NS.north;
   }
 
-  /// Para guardar lines[] por capilla con color/lado ya correcto
   List<CapLine> capLinesWithColor(CapillaDef cap) {
     _ensureLineMeta();
     final sideLines = cap.resolvedSideLines(this);
     final sorted = [...sideLines]..sort((a, b) => a.lineNo.compareTo(b.lineNo));
 
     return sorted
-        .map((l) => CapLine(
-              lineNo: l.lineNo,
-              side: l.side,
-              color: lineColor(l.lineNo),
-            ))
+        .map(
+          (l) => CapLine(
+            lineNo: l.lineNo,
+            side: l.side,
+            color: lineColor(l.lineNo),
+          ),
+        )
         .toList();
   }
 
   Map<String, dynamic> toMap() => {
-        "name": name.trim(),
-        "postsNorth": postsNorth,
-        "postsSouth": postsSouth,
-        "firstLineNo": firstLineNo,
-        "lineStartSide": nsToStr(lineStartSide),
-        "stripedLines": stripedLines,
-        "stripedStart": colorNorm(stripedStart),
-        "capillas": capillas.map((c) => c.toMapWithContext(this)).toList(),
-        "inactiveN": inactiveN.toList(),
-        "inactiveS": inactiveS.toList(),
-        "traps": traps.map((t) => t.toMap()).toList(),
-        "updatedAt": DateTime.now().toIso8601String(),
-      };
+    "name": name.trim(),
+    "postsNorth": postsNorth,
+    "postsSouth": postsSouth,
+    "firstLineNo": firstLineNo,
+    "lineStartSide": nsToStr(lineStartSide),
+    "stripedLines": stripedLines,
+    "stripedStart": colorNorm(stripedStart),
+    "capillas": capillas.map((c) => c.toMapWithContext(this)).toList(),
+    "inactiveN": inactiveN.toList(),
+    "inactiveS": inactiveS.toList(),
+    "traps": traps.map((t) => t.toMap()).toList(),
+    "weeklyPlants": weeklyPlants,
+    "weeklyActiveTraps": weeklyActiveTraps,
+    "updatedAt": DateTime.now().toIso8601String(),
+  };
 
   static GreenhouseMap fromDoc(String id, Map<String, dynamic> m) {
     final pn = (m["postsNorth"] ?? 0) as int;
@@ -624,6 +737,20 @@ class GreenhouseMap {
       lineStartSide: startSide,
       stripedLines: (m["stripedLines"] ?? true) == true,
       stripedStart: colorNorm((m["stripedStart"] ?? "WHITE").toString()),
+      weeklyPlants: (m["weeklyPlants"] is Map)
+          ? Map<String, int>.from(
+              (m["weeklyPlants"] as Map).map(
+                (k, v) => MapEntry(k.toString(), (v ?? 0) as int),
+              ),
+            )
+          : <String, int>{},
+      weeklyActiveTraps: (m["weeklyActiveTraps"] is Map)
+          ? Map<String, int>.from(
+              (m["weeklyActiveTraps"] as Map).map(
+                (k, v) => MapEntry(k.toString(), (v ?? 0) as int),
+              ),
+            )
+          : <String, int>{},
       capillas: ((m["capillas"] ?? const []) as List)
           .map((e) => CapillaDef.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
@@ -642,7 +769,7 @@ class GreenhouseMap {
 
 class _LineMeta {
   final NS side;
-  final String color; // "WHITE"|"GREEN"
+  final String color;
   const _LineMeta({required this.side, required this.color});
 }
 
@@ -675,5 +802,10 @@ class ColumnInfo {
 class _TrapIndexEntry {
   final String trapId;
   final String trapName;
-  const _TrapIndexEntry({required this.trapId, required this.trapName});
+  final bool active;
+  const _TrapIndexEntry({
+    required this.trapId,
+    required this.trapName,
+    required this.active,
+  });
 }

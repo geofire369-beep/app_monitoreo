@@ -1,4 +1,3 @@
-// map_widgets.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -18,7 +17,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
   bool _fitDone = false;
   bool _isLongPainting = false;
 
-  // ========================= RANGE SELECT (tipo Excel) =========================
   int? _activePointerId;
   bool _rangeSelecting = false;
   _HitCell? _rangeStart;
@@ -76,7 +74,10 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
           final s = scale.clamp(0.2, 6.0);
 
           final contentW = canvasW * s;
-          final tx = ((constraints.maxWidth - contentW) / 2).clamp(0.0, double.infinity);
+          final tx = ((constraints.maxWidth - contentW) / 2).clamp(
+            0.0,
+            double.infinity,
+          );
 
           _tc.value = Matrix4.identity()
             ..translate(tx, 8.0)
@@ -89,18 +90,13 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
           boundaryMargin: const EdgeInsets.all(2000),
           minScale: 0.2,
           maxScale: 8.0,
-
-          // ✅ mientras seleccionas rango, bloquea el pan del viewer
           panEnabled: !_rangeSelecting,
-
           child: Listener(
             behavior: HitTestBehavior.opaque,
-
-            // ✅ Range select: click + drag (SIN toScene; localPosition ya está alineado)
             onPointerDown: (e) {
               if (_activePointerId != null) return;
 
-              final scene = e.localPosition; // ✅ FIX alineación
+              final scene = e.localPosition;
 
               final hit = _hitCell(
                 scene,
@@ -121,12 +117,11 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
                 setState(() {});
               }
             },
-
             onPointerMove: (e) {
               if (!_rangeSelecting) return;
               if (_activePointerId != e.pointer) return;
 
-              final scene = e.localPosition; // ✅ FIX alineación
+              final scene = e.localPosition;
 
               final hit = _hitCell(
                 scene,
@@ -142,24 +137,23 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
               if (_rangeStart != null && hit.side != _rangeStart!.side) return;
 
               _rangeEnd = hit;
-              _currentRangeRect = _buildRangeRect(map, _rangeStart!, _rangeEnd!);
+              _currentRangeRect = _buildRangeRect(
+                map,
+                _rangeStart!,
+                _rangeEnd!,
+              );
               setState(() {});
             },
-
             onPointerUp: (e) {
               if (_activePointerId != e.pointer) return;
               _finishRangeSelection(map, notify: true);
             },
-
             onPointerCancel: (e) {
               if (_activePointerId != e.pointer) return;
               _cancelRangeSelection();
             },
-
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-
-              // ✅ tap normal sigue funcionando (casilla por casilla)
               onTapDown: (d) {
                 if (_rangeSelecting) return;
                 _paintOrTrapAt(
@@ -173,8 +167,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
                   notify: true,
                 );
               },
-
-              // ✅ long press paint sigue funcionando
               onLongPressStart: (d) {
                 if (_rangeSelecting) return;
                 _isLongPainting = true;
@@ -204,7 +196,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
                 );
               },
               onLongPressEnd: (_) => _isLongPainting = false,
-
               child: CustomPaint(
                 size: Size(canvasW, canvasH),
                 painter: MapLayoutPainter(
@@ -219,8 +210,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
                   gutterW: gutterW,
                   labelH: labelH,
                   margin: margin,
-
-                  // ✅ overlay selección
                   rangeRect: _currentRangeRect,
                 ),
               ),
@@ -230,8 +219,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
       },
     );
   }
-
-  // ========================= HIT TEST + RANGE APPLY =========================
 
   _HitCell? _hitCell(
     Offset p,
@@ -251,24 +238,22 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
 
     final info = map.columnInfo(col);
 
-    // NORTE
     if (p.dy >= northGridTop && p.dy < northGridTop + map.postsNorth * cellH) {
       final lineNo = info.northLineNo;
       if (lineNo == null) return null;
 
-      final row = ((p.dy - northGridTop) / cellH).floor() + 1; // 1..postsNorth
-      final posteReal = map.postsNorth - row + 1; // invertir para que coincida con UI
+      final row = ((p.dy - northGridTop) / cellH).floor() + 1;
+      final posteReal = map.postsNorth - row + 1;
 
       if (posteReal < 1 || posteReal > map.postsNorth) return null;
       return _HitCell(side: NS.north, poste: posteReal, lineNo: lineNo);
     }
 
-    // SUR
     if (p.dy >= southGridTop && p.dy < southGridTop + map.postsSouth * cellH) {
       final lineNo = info.southLineNo;
       if (lineNo == null) return null;
 
-      final row = ((p.dy - southGridTop) / cellH).floor() + 1; // 1..postsSouth
+      final row = ((p.dy - southGridTop) / cellH).floor() + 1;
       final posteReal = row;
 
       if (posteReal < 1 || posteReal > map.postsSouth) return null;
@@ -303,7 +288,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
 
     final controller = widget.controller;
 
-    // Si estás en modo trampa, el rango marca trampas (toggle)
     if (controller.isTrapMode) {
       for (int line = r.minLine; line <= r.maxLine; line++) {
         for (int post = r.minPost; post <= r.maxPost; post++) {
@@ -316,7 +300,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
       return;
     }
 
-    // Pintado normal: aplicar herramienta activa/descativa/toggle
     for (int line = r.minLine; line <= r.maxLine; line++) {
       for (int post = r.minPost; post <= r.maxPost; post++) {
         final exists = _cellExistsOnMap(map, r.side, post, line);
@@ -350,8 +333,6 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
     if (mounted) setState(() {});
   }
 
-  // ========================= EXISTENTE (NO TOCAR) =========================
-
   void _paintOrTrapAt(
     Offset p,
     GreenhouseMap map,
@@ -373,13 +354,12 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
 
     final info = map.columnInfo(col);
 
-    // NORTE
     if (p.dy >= northGridTop && p.dy < northGridTop + map.postsNorth * cellH) {
       final lineNo = info.northLineNo;
       if (lineNo == null) return;
 
-      final row = ((p.dy - northGridTop) / cellH).floor() + 1; // 1..postsNorth
-      final posteReal = map.postsNorth - row + 1; // invertir para que coincida con UI
+      final row = ((p.dy - northGridTop) / cellH).floor() + 1;
+      final posteReal = map.postsNorth - row + 1;
 
       if (controller.isTrapMode) {
         controller.toggleDraftTrapCell(NS.north, posteReal, lineNo);
@@ -389,12 +369,11 @@ class _MapLayoutEditorState extends State<MapLayoutEditor> {
       return;
     }
 
-    // SUR
     if (p.dy >= southGridTop && p.dy < southGridTop + map.postsSouth * cellH) {
       final lineNo = info.southLineNo;
       if (lineNo == null) return;
 
-      final row = ((p.dy - southGridTop) / cellH).floor() + 1; // 1..postsSouth
+      final row = ((p.dy - southGridTop) / cellH).floor() + 1;
       final posteReal = row;
 
       if (controller.isTrapMode) {
@@ -424,7 +403,6 @@ class MapLayoutPainter extends CustomPainter {
   final double labelH;
   final double margin;
 
-  // ✅ overlay selección rango
   final _RangeRect? rangeRect;
 
   MapLayoutPainter({
@@ -495,7 +473,11 @@ class MapLayoutPainter extends CustomPainter {
 
     for (int c = 0; c <= totalCols; c++) {
       final x = gutterW + c * colW;
-      canvas.drawLine(Offset(x, northGridTop), Offset(x, southGridTop + southGridH), gridLine);
+      canvas.drawLine(
+        Offset(x, northGridTop),
+        Offset(x, southGridTop + southGridH),
+        gridLine,
+      );
     }
 
     for (int r = 0; r <= map.postsNorth; r++) {
@@ -526,7 +508,6 @@ class MapLayoutPainter extends CustomPainter {
       Paint()..color = const Color(0xFFFAFAFA),
     );
 
-    // banda capillas
     double xCursor = gutterW;
     final capFill = Paint()..color = const Color(0xFFBBDEFB);
     final capStroke = Paint()
@@ -547,21 +528,34 @@ class MapLayoutPainter extends CustomPainter {
         final tp = TextPainter(
           text: TextSpan(
             text: title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black87),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: Colors.black87,
+            ),
           ),
           textDirection: TextDirection.ltr,
           maxLines: 1,
           ellipsis: '…',
         )..layout(maxWidth: w - 8);
 
-        tp.paint(canvas, Offset(xCursor + (w - tp.width) / 2, capY + (capBandH - tp.height) / 2));
+        tp.paint(
+          canvas,
+          Offset(
+            xCursor + (w - tp.width) / 2,
+            capY + (capBandH - tp.height) / 2,
+          ),
+        );
       }
 
       xCursor += w;
     }
 
-    // Números + patrón verde/blanco (CORRECTO por mapa)
-    final numStyle = const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.black87);
+    final numStyle = const TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w900,
+      color: Colors.black87,
+    );
 
     final greenBg = Paint()..color = const Color(0xFF8BC34A);
     final whiteBg = Paint()..color = Colors.white;
@@ -572,7 +566,6 @@ class MapLayoutPainter extends CustomPainter {
       final nLine = info.northLineNo;
       final sLine = info.southLineNo;
 
-      // TOP (NORTE)
       if (nLine != null && map.stripedLines) {
         final isGreen = map.isGreenLine(nLine);
         canvas.drawRect(
@@ -586,16 +579,25 @@ class MapLayoutPainter extends CustomPainter {
         );
       }
 
-      // BOTTOM (SUR)
       if (sLine != null && map.stripedLines) {
         final isGreen = map.isGreenLine(sLine);
         canvas.drawRect(
-          Rect.fromLTWH(gutterW + c * colW, top + topNumH + capBandH, colW, bottomNumH),
+          Rect.fromLTWH(
+            gutterW + c * colW,
+            top + topNumH + capBandH,
+            colW,
+            bottomNumH,
+          ),
           isGreen ? greenBg : whiteBg,
         );
       } else {
         canvas.drawRect(
-          Rect.fromLTWH(gutterW + c * colW, top + topNumH + capBandH, colW, bottomNumH),
+          Rect.fromLTWH(
+            gutterW + c * colW,
+            top + topNumH + capBandH,
+            colW,
+            bottomNumH,
+          ),
           Paint()..color = Colors.white,
         );
       }
@@ -610,7 +612,10 @@ class MapLayoutPainter extends CustomPainter {
       _rotatedNumber(
         canvas: canvas,
         text: sLine?.toString() ?? "",
-        center: Offset(gutterW + c * colW + colW / 2, top + topNumH + capBandH + bottomNumH / 2),
+        center: Offset(
+          gutterW + c * colW + colW / 2,
+          top + topNumH + capBandH + bottomNumH / 2,
+        ),
         style: numStyle,
       );
     }
@@ -625,14 +630,21 @@ class MapLayoutPainter extends CustomPainter {
     required bool ascendingPosts,
     required _RangeRect? rangeRect,
   }) {
-    final onPaint = Paint()..color = (ns == NS.north) ? const Color(0xFFFFEBEE) : const Color(0xFFE8F5E9);
+    final onPaint = Paint()
+      ..color = (ns == NS.north)
+          ? const Color(0xFFFFEBEE)
+          : const Color(0xFFE8F5E9);
     final offPaint = Paint()..color = const Color(0xFFF3F3F3);
     final emptyPaint = Paint()..color = Colors.white;
 
     final bar = Paint()..color = const Color(0xFF2F62B6);
     canvas.drawRect(Rect.fromLTWH(0, top, gutterW, posts * cellH), bar);
 
-    final postStyle = const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white);
+    final postStyle = const TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w900,
+      color: Colors.white,
+    );
     for (int r = 1; r <= posts; r++) {
       final posteNo = ascendingPosts ? r : (posts - (r - 1));
       final tp = TextPainter(
@@ -640,21 +652,31 @@ class MapLayoutPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      tp.paint(canvas, Offset(gutterW / 2 - tp.width / 2, top + (r - 1) * cellH + (cellH - tp.height) / 2));
+      tp.paint(
+        canvas,
+        Offset(
+          gutterW / 2 - tp.width / 2,
+          top + (r - 1) * cellH + (cellH - tp.height) / 2,
+        ),
+      );
     }
 
-    // overlays
-    final trapBorder = Paint()
+    // ✅ activas azul, inactivas gris
+    final trapBorderActive = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
-      ..color = const Color(0xFF1976D2); // azul
+      ..color = const Color(0xFF1976D2);
+
+    final trapBorderInactive = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = Colors.black.withOpacity(0.35);
 
     final draftBorder = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.6
-      ..color = const Color(0xFFF57C00); // naranja
+      ..color = const Color(0xFFF57C00);
 
-    // ✅ overlay selección rango
     final selFill = Paint()..color = const Color(0xFF1976D2).withOpacity(0.10);
     final selStroke = Paint()
       ..style = PaintingStyle.stroke
@@ -668,7 +690,12 @@ class MapLayoutPainter extends CustomPainter {
         final info = map.columnInfo(c);
         final lineNo = (ns == NS.north) ? info.northLineNo : info.southLineNo;
 
-        final rect = Rect.fromLTWH(gutterW + c * colW, top + (visualRow - 1) * cellH, colW, cellH);
+        final rect = Rect.fromLTWH(
+          gutterW + c * colW,
+          top + (visualRow - 1) * cellH,
+          colW,
+          cellH,
+        );
 
         if (lineNo == null) {
           canvas.drawRect(rect, emptyPaint);
@@ -678,7 +705,6 @@ class MapLayoutPainter extends CustomPainter {
         final active = map.isActive(ns, posteReal, lineNo);
         canvas.drawRect(rect, active ? onPaint : offPaint);
 
-        // ✅ rango (si aplica a este lado)
         if (rangeRect != null &&
             rangeRect.side == ns &&
             posteReal >= rangeRect.minPost &&
@@ -689,13 +715,16 @@ class MapLayoutPainter extends CustomPainter {
           canvas.drawRect(rect.deflate(0.4), selStroke);
         }
 
-        // Trampas guardadas
         if (map.isTrapCell(ns, posteReal, lineNo)) {
-          canvas.drawRect(rect.deflate(1), trapBorder);
+          final tActive = map.isTrapCellActive(ns, posteReal, lineNo);
+          canvas.drawRect(
+            rect.deflate(1),
+            tActive ? trapBorderActive : trapBorderInactive,
+          );
         }
 
-        // Selección temporal (modo trampa)
-        if (controller.isTrapMode && controller.isDraftTrapCell(ns, posteReal, lineNo)) {
+        if (controller.isTrapMode &&
+            controller.isDraftTrapCell(ns, posteReal, lineNo)) {
           canvas.drawRect(rect.deflate(0.5), draftBorder);
         }
       }
@@ -723,25 +752,28 @@ class MapLayoutPainter extends CustomPainter {
 
   void _label(Canvas canvas, String text, Offset pos) {
     final tp = TextPainter(
-      text: TextSpan(text: text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, pos);
   }
 
   @override
-  bool shouldRepaint(covariant MapLayoutPainter oldDelegate) {
-    return false;
-  }
+  bool shouldRepaint(covariant MapLayoutPainter oldDelegate) => false;
 }
-
-// ========================= RANGE MODELS =========================
 
 class _HitCell {
   final NS side;
   final int poste;
   final int lineNo;
-  const _HitCell({required this.side, required this.poste, required this.lineNo});
+  const _HitCell({
+    required this.side,
+    required this.poste,
+    required this.lineNo,
+  });
 }
 
 class _RangeRect {

@@ -14,6 +14,8 @@ class MapaPage extends StatefulWidget {
 }
 
 class _MapaPageState extends State<MapaPage> {
+  static const String _adminPass = 'admingeo123';
+
   final controller = MapaController();
 
   bool _askedFirstCapilla = false;
@@ -22,6 +24,9 @@ class _MapaPageState extends State<MapaPage> {
 
   bool _capillasExpanded = false;
   bool _trampasExpanded = false;
+
+  // ✅ desbloqueo de edición (capillas/trampas) en sesión
+  bool _editUnlocked = false;
 
   @override
   void initState() {
@@ -58,7 +63,10 @@ class _MapaPageState extends State<MapaPage> {
       builder: (_, __) {
         final map = controller.map;
 
-        if (!_loading && map != null && map.capillas.isEmpty && !_askedFirstCapilla) {
+        if (!_loading &&
+            map != null &&
+            map.capillas.isEmpty &&
+            !_askedFirstCapilla) {
           _askedFirstCapilla = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showAddCapillaDialog(context);
@@ -67,7 +75,10 @@ class _MapaPageState extends State<MapaPage> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(map?.name ?? (widget.mapId != null ? "Editar mapa" : "Crear mapa")),
+            title: Text(
+              map?.name ??
+                  (widget.mapId != null ? "Editar mapa" : "Crear mapa"),
+            ),
             backgroundColor: AppTheme.pepperRed,
             foregroundColor: Colors.white,
             actions: [
@@ -84,16 +95,50 @@ class _MapaPageState extends State<MapaPage> {
                       );
                     } catch (e) {
                       if (!mounted) return;
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+                    }
+                  },
+                ),
+              if (map != null)
+                IconButton(
+                  icon: const Icon(Icons.delete_forever_rounded),
+                  tooltip: "Eliminar mapa",
+                  onPressed: () async {
+                    // ✅ siempre pide clave en eliminar
+                    final okPass = await _askAdminPassword(
+                      context,
+                      title: 'Eliminar mapa',
+                    );
+                    if (!okPass) return;
+
+                    final sure = await _confirmDanger(
+                      context,
+                      title: 'Eliminar mapa',
+                      msg:
+                          '¿Seguro que quieres eliminar este mapa?\n\nEsto elimina el documento del mapa.',
+                    );
+                    if (sure != true) return;
+
+                    try {
+                      await controller.deleteFromFirestore();
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error: $e")),
+                        const SnackBar(content: Text("Mapa eliminado ✅")),
+                      );
+                      Navigator.pop(context);
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Error al eliminar: $e")),
                       );
                     }
                   },
-                )
+                ),
             ],
           ),
 
-          // ✅ COMO TU IMAGEN: DOS BOTONES GRANDES ABAJO, MITAD Y MITAD
           bottomNavigationBar: (map == null || _loading)
               ? null
               : SafeArea(
@@ -109,7 +154,13 @@ class _MapaPageState extends State<MapaPage> {
                                 backgroundColor: accent,
                                 foregroundColor: Colors.white,
                               ),
-                              onPressed: controller.isTrapMode ? null : () => _showAddCapillaDialog(context),
+                              onPressed: controller.isTrapMode
+                                  ? null
+                                  : () async {
+                                      if (!await _ensureEditUnlocked(context))
+                                        return;
+                                      _showAddCapillaDialog(context);
+                                    },
                               icon: const Icon(Icons.add),
                               label: const Text("Agregar capilla"),
                             ),
@@ -121,7 +172,13 @@ class _MapaPageState extends State<MapaPage> {
                                 backgroundColor: accent,
                                 foregroundColor: Colors.white,
                               ),
-                              onPressed: controller.isTrapMode ? null : () => controller.startTrapMode(),
+                              onPressed: controller.isTrapMode
+                                  ? null
+                                  : () async {
+                                      if (!await _ensureEditUnlocked(context))
+                                        return;
+                                      controller.startTrapMode();
+                                    },
                               icon: const Icon(Icons.add_location_alt_outlined),
                               label: const Text("Trampa"),
                             ),
@@ -135,56 +192,166 @@ class _MapaPageState extends State<MapaPage> {
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_loadError != null)
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text("Error al cargar: $_loadError"),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: () => _loadMap(widget.mapId!),
-                              icon: const Icon(Icons.refresh),
-                              label: const Text("Reintentar"),
-                            ),
-                          ],
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Error al cargar: $_loadError"),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _loadMap(widget.mapId!),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text("Reintentar"),
                         ),
-                      ),
-                    )
-                  : (map == null
-                      ? _CreateMapWizard(
-                          onCreate: ({
-                            required String name,
-                            required int postsNorth,
-                            required int postsSouth,
-                            required int firstLineNo,
-                            required bool stripedLines,
-                            required String stripedStart,
-                            required NS lineStartSide,
-                          }) {
-                            controller.newMap(
-                              name: name,
-                              postsNorth: postsNorth,
-                              postsSouth: postsSouth,
-                              firstLineNo: firstLineNo,
-                              stripedLines: stripedLines,
-                              stripedStart: stripedStart,
-                              lineStartSide: lineStartSide,
-                            );
-                          },
-                        )
-                      : _EditorBody(
-                          controller: controller,
-                          capillasExpanded: _capillasExpanded,
-                          onToggleCapillas: (v) => setState(() => _capillasExpanded = v),
-                          trampasExpanded: _trampasExpanded,
-                          onToggleTrampas: (v) => setState(() => _trampasExpanded = v),
-                        )),
+                      ],
+                    ),
+                  ),
+                )
+              : (map == null
+                    ? _CreateMapWizard(
+                        onCreate:
+                            ({
+                              required String name,
+                              required int postsNorth,
+                              required int postsSouth,
+                              required int firstLineNo,
+                              required bool stripedLines,
+                              required String stripedStart,
+                              required NS lineStartSide,
+                            }) async {
+                              // ✅ crear pide clave
+                              final okPass = await _askAdminPassword(
+                                context,
+                                title: 'Crear mapa',
+                              );
+                              if (!okPass) return;
+
+                              controller.newMap(
+                                name: name,
+                                postsNorth: postsNorth,
+                                postsSouth: postsSouth,
+                                firstLineNo: firstLineNo,
+                                stripedLines: stripedLines,
+                                stripedStart: stripedStart,
+                                lineStartSide: lineStartSide,
+                              );
+
+                              // ✅ al crear, por default edición sigue bloqueada hasta que lo intenten
+                              _editUnlocked = false;
+                            },
+                      )
+                    : _EditorBody(
+                        controller: controller,
+                        editUnlocked: _editUnlocked,
+                        onRequestEditUnlock: () => _ensureEditUnlocked(context),
+                        capillasExpanded: _capillasExpanded,
+                        onToggleCapillas: (v) =>
+                            setState(() => _capillasExpanded = v),
+                        trampasExpanded: _trampasExpanded,
+                        onToggleTrampas: (v) =>
+                            setState(() => _trampasExpanded = v),
+                      )),
         );
       },
     );
   }
+
+  // ========================= admin/password =========================
+
+  Future<bool> _ensureEditUnlocked(BuildContext context) async {
+    if (_editUnlocked) return true;
+    final ok = await _askAdminPassword(context, title: 'Editar mapa');
+    if (!ok) return false;
+    setState(() => _editUnlocked = true);
+    return true;
+  }
+
+  Future<bool> _askAdminPassword(
+    BuildContext context, {
+    required String title,
+  }) async {
+    final ctrl = TextEditingController();
+    bool bad = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('$title • Clave'),
+        content: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Clave de administrador',
+                    errorText: bad ? 'Clave incorrecta' : null,
+                  ),
+                  onSubmitted: (_) => Navigator.pop(ctx, true),
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return false;
+
+    if (ctrl.text.trim() != _adminPass) {
+      // reintento simple
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Clave incorrecta.')));
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<bool?> _confirmDanger(
+    BuildContext context, {
+    required String title,
+    required String msg,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.pepperRed,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========================= dialogs capilla =========================
 
   Future<void> _showAddCapillaDialog(BuildContext context) async {
     final map = controller.map!;
@@ -194,14 +361,14 @@ class _MapaPageState extends State<MapaPage> {
     final onlySouth = map.postsSouth > 0 && map.postsNorth <= 0;
 
     final nameCtrl = TextEditingController();
-    final lineCountCtrl = TextEditingController(text: "12");
+    final lineCountCtrl = TextEditingController(text: "20");
     final startLineCtrl = TextEditingController(text: "${map.firstLineNo}");
 
     CapSideMode mode = onlyNorth
         ? CapSideMode.northOnly
         : onlySouth
-            ? CapSideMode.southOnly
-            : CapSideMode.bothPaired;
+        ? CapSideMode.southOnly
+        : CapSideMode.bothPaired;
 
     bool advanced = false;
     final untilCtrl = TextEditingController();
@@ -249,11 +416,15 @@ class _MapaPageState extends State<MapaPage> {
                     if (!(onlyNorth || onlySouth))
                       DropdownButtonFormField<CapSideMode>(
                         value: mode,
-                        decoration: const InputDecoration(labelText: "Capilla aplica a"),
+                        decoration: const InputDecoration(
+                          labelText: "Capilla aplica a",
+                        ),
                         items: const [
                           DropdownMenuItem(
                             value: CapSideMode.bothPaired,
-                            child: Text("Norte + Sur (según numeración del invernadero)"),
+                            child: Text(
+                              "Norte + Sur (según numeración del invernadero)",
+                            ),
                           ),
                           DropdownMenuItem(
                             value: CapSideMode.northOnly,
@@ -275,12 +446,15 @@ class _MapaPageState extends State<MapaPage> {
                           });
                         },
                       ),
-                    if (!(onlyNorth || onlySouth) && mode == CapSideMode.bothPaired) ...[
+                    if (!(onlyNorth || onlySouth) &&
+                        mode == CapSideMode.bothPaired) ...[
                       const SizedBox(height: 10),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text("Configuración avanzada"),
-                        subtitle: const Text("Parte N+S y el resto solo en un lado"),
+                        subtitle: const Text(
+                          "Parte N+S y el resto solo en un lado",
+                        ),
                         value: advanced,
                         onChanged: (v) => setState(() => advanced = v),
                       ),
@@ -290,17 +464,26 @@ class _MapaPageState extends State<MapaPage> {
                           controller: untilCtrl,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: "¿Hasta qué número de línea es Norte + Sur?",
+                            labelText:
+                                "¿Hasta qué número de línea es Norte + Sur?",
                             hintText: "Ej: 34",
                           ),
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<CapSideMode>(
                           value: remainder,
-                          decoration: const InputDecoration(labelText: "Después continúa en"),
+                          decoration: const InputDecoration(
+                            labelText: "Después continúa en",
+                          ),
                           items: const [
-                            DropdownMenuItem(value: CapSideMode.southOnly, child: Text("Solo Sur")),
-                            DropdownMenuItem(value: CapSideMode.northOnly, child: Text("Solo Norte")),
+                            DropdownMenuItem(
+                              value: CapSideMode.southOnly,
+                              child: Text("Solo Sur"),
+                            ),
+                            DropdownMenuItem(
+                              value: CapSideMode.northOnly,
+                              child: Text("Solo Norte"),
+                            ),
                           ],
                           onChanged: (v) => setState(() => remainder = v!),
                         ),
@@ -312,8 +495,14 @@ class _MapaPageState extends State<MapaPage> {
             },
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
-            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Agregar")),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Agregar"),
+            ),
           ],
         );
       },
@@ -329,9 +518,13 @@ class _MapaPageState extends State<MapaPage> {
       return;
     }
 
-    final overrideStart = isFirst ? (int.tryParse(startLineCtrl.text.trim()) ?? map.firstLineNo) : null;
+    final overrideStart = isFirst
+        ? (int.tryParse(startLineCtrl.text.trim()) ?? map.firstLineNo)
+        : null;
 
-    final start = isFirst ? (overrideStart ?? map.firstLineNo) : (map.lastLineNo + 1);
+    final start = isFirst
+        ? (overrideStart ?? map.firstLineNo)
+        : (map.lastLineNo + 1);
     final end = start + lineCount - 1;
 
     int? bothUntil;
@@ -359,6 +552,9 @@ class _MapaPageState extends State<MapaPage> {
 class _EditorBody extends StatelessWidget {
   final MapaController controller;
 
+  final bool editUnlocked;
+  final Future<bool> Function() onRequestEditUnlock;
+
   final bool capillasExpanded;
   final ValueChanged<bool> onToggleCapillas;
 
@@ -367,6 +563,8 @@ class _EditorBody extends StatelessWidget {
 
   const _EditorBody({
     required this.controller,
+    required this.editUnlocked,
+    required this.onRequestEditUnlock,
     required this.capillasExpanded,
     required this.onToggleCapillas,
     required this.trampasExpanded,
@@ -397,6 +595,7 @@ class _EditorBody extends StatelessWidget {
                   expanded: capillasExpanded,
                   onToggle: onToggleCapillas,
                   maxFactor: 0.26,
+                  ensureUnlocked: onRequestEditUnlock,
                 ),
               ),
               const SizedBox(width: 8),
@@ -407,6 +606,7 @@ class _EditorBody extends StatelessWidget {
                   expanded: trampasExpanded,
                   onToggle: onToggleTrampas,
                   maxFactor: 0.26,
+                  ensureUnlocked: onRequestEditUnlock,
                 ),
               ),
             ],
@@ -417,7 +617,7 @@ class _EditorBody extends StatelessWidget {
   }
 }
 
-// ========================= TOOLBAR (AQUÍ VA LO DE TRAMPAS ARRIBA A LA DERECHA) =========================
+// ========================= TOOLBAR =========================
 
 class _Toolbar extends StatelessWidget {
   final MapaController controller;
@@ -428,28 +628,78 @@ class _Toolbar extends StatelessWidget {
     final addingTrap = controller.isTrapMode;
     final selectedCount = controller.draftTrapCells.length;
 
+    final map = controller.map!;
+    final now = DateTime.now();
+    final weekKey = weekKeyFromDate(now);
+    final plants = map.weeklyPlants[weekKey];
+
     return Material(
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            const Text("Pintar:", style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              "Pintar:",
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             const SizedBox(width: 10),
             SegmentedButton<PaintTool>(
               segments: const [
                 ButtonSegment(value: PaintTool.toggle, label: Text("Toggle")),
-                ButtonSegment(value: PaintTool.activate, label: Text("Activar")),
-                ButtonSegment(value: PaintTool.deactivate, label: Text("Desactivar")),
+                ButtonSegment(
+                  value: PaintTool.activate,
+                  label: Text("Activar"),
+                ),
+                ButtonSegment(
+                  value: PaintTool.deactivate,
+                  label: Text("Desactivar"),
+                ),
               ],
               selected: {controller.tool},
               onSelectionChanged: (s) => controller.setTool(s.first),
             ),
+            const SizedBox(width: 12),
+
+            // ✅ toggle para habilitar/deshabilitar edición de zonas
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: controller.zonesEnabled
+                    ? const Color(0xFFE8F5E9)
+                    : Colors.black.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.black.withOpacity(0.10)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    controller.zonesEnabled
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_outline_rounded,
+                    size: 18,
+                    color: controller.zonesEnabled
+                        ? Colors.green
+                        : Colors.black54,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Editar zonas",
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(width: 10),
+                  Switch.adaptive(
+                    value: controller.zonesEnabled,
+                    onChanged: (v) => controller.setZonesEnabled(v),
+                    activeColor: Colors.green,
+                  ),
+                ],
+              ),
+            ),
 
             const Spacer(),
 
-            // ✅ AQUÍ, EXACTO DONDE TÚ PUSISTE EL TEXTO EN LA IMAGEN
-            //    van los controles de trampas.
             if (addingTrap)
               Flexible(
                 child: Align(
@@ -464,11 +714,16 @@ class _Toolbar extends StatelessWidget {
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.04),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black.withOpacity(0.08)),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.08),
+                          ),
                         ),
                         child: Text(
                           "Seleccionadas: $selectedCount",
@@ -483,7 +738,10 @@ class _Toolbar extends StatelessWidget {
                         onPressed: selectedCount == 0
                             ? null
                             : () async {
-                                final name = await _askTrapName(context, controller);
+                                final name = await _askTrapName(
+                                  context,
+                                  controller,
+                                );
                                 if (name == null) return;
                                 controller.commitTrap(name);
                               },
@@ -492,6 +750,18 @@ class _Toolbar extends StatelessWidget {
                     ],
                   ),
                 ),
+              )
+            else
+              _WeeklyPlantsChip(
+                weekKey: weekKey,
+                value: plants,
+                trapsActive:
+                    map.weeklyActiveTraps[weekKey] ?? map.activeTrapCount,
+                onEdit: () async {
+                  final v = await _askWeeklyPlants(context, plants);
+                  if (v == null) return;
+                  controller.setPlantsForWeek(now, v);
+                },
               ),
           ],
         ),
@@ -499,7 +769,10 @@ class _Toolbar extends StatelessWidget {
     );
   }
 
-  Future<String?> _askTrapName(BuildContext context, MapaController controller) async {
+  Future<String?> _askTrapName(
+    BuildContext context,
+    MapaController controller,
+  ) async {
     final map = controller.map!;
     final suggested = "Trampa ${map.traps.length + 1}";
     final ctrl = TextEditingController(text: suggested);
@@ -516,8 +789,14 @@ class _Toolbar extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancelar")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Guardar")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Guardar"),
+          ),
         ],
       ),
     );
@@ -525,6 +804,99 @@ class _Toolbar extends StatelessWidget {
     if (ok != true) return null;
     final v = ctrl.text.trim();
     return v.isEmpty ? suggested : v;
+  }
+
+  Future<int?> _askWeeklyPlants(BuildContext context, int? current) async {
+    final ctrl = TextEditingController(text: current?.toString() ?? "");
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Total de plantas (esta semana)"),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Total de plantas",
+            hintText: "Ej: 12500",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return null;
+
+    final raw = ctrl.text.trim();
+    final n = int.tryParse(raw);
+    if (n == null || n < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Escribe un número válido (0 o mayor).")),
+      );
+      return null;
+    }
+    return n;
+  }
+}
+
+class _WeeklyPlantsChip extends StatelessWidget {
+  final String weekKey;
+  final int? value;
+  final int trapsActive;
+  final VoidCallback onEdit;
+
+  const _WeeklyPlantsChip({
+    required this.weekKey,
+    required this.value,
+    required this.trapsActive,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.black.withOpacity(0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.spa_outlined, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            "Plantas $weekKey: ${value == null ? "—" : value.toString()}",
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+          ),
+          const SizedBox(width: 10),
+          const Icon(Icons.local_activity_outlined, size: 16),
+          const SizedBox(width: 6),
+          Text(
+            "Trampas activas: $trapsActive",
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+          ),
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: onEdit,
+            borderRadius: BorderRadius.circular(999),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.edit, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -539,21 +911,26 @@ class _CapillasPanel extends StatelessWidget {
 
   final double maxFactor;
 
+  final Future<bool> Function() ensureUnlocked;
+
   const _CapillasPanel({
     required this.map,
     required this.controller,
     required this.expanded,
     required this.onToggle,
     required this.maxFactor,
+    required this.ensureUnlocked,
   });
 
   String _segmentsLabel(CapillaDef cap) {
     if (cap.segments.isEmpty) return "Sin segmentos";
-    return cap.segments.map((s) {
-      if (s.mode == CapSideMode.bothPaired) return "N+S(${s.lineCount})";
-      if (s.mode == CapSideMode.northOnly) return "N(${s.lineCount})";
-      return "S(${s.lineCount})";
-    }).join(" → ");
+    return cap.segments
+        .map((s) {
+          if (s.mode == CapSideMode.bothPaired) return "N+S(${s.lineCount})";
+          if (s.mode == CapSideMode.northOnly) return "N(${s.lineCount})";
+          return "S(${s.lineCount})";
+        })
+        .join(" → ");
   }
 
   @override
@@ -572,10 +949,16 @@ class _CapillasPanel extends StatelessWidget {
             InkWell(
               onTap: () => onToggle(!expanded),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    Text("Capillas: ${map.capillas.length}", style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      "Capillas: ${map.capillas.length}",
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     const Spacer(),
                     Icon(expanded ? Icons.expand_more : Icons.expand_less),
                   ],
@@ -594,15 +977,23 @@ class _CapillasPanel extends StatelessWidget {
 
                     return ListTile(
                       dense: true,
-                      title: Text("${cap.name ?? "(sin nombre)"}   [${cap.startLineNo}..${cap.endLineNoResolved}]"),
+                      title: Text(
+                        "${cap.name ?? "(sin nombre)"}   [${cap.startLineNo}..${cap.endLineNoResolved}]",
+                      ),
                       subtitle: Text("Segmentos: ${_segmentsLabel(cap)}"),
                       trailing: isLast
                           ? IconButton(
                               tooltip: "Eliminar última capilla",
                               icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => controller.deleteLastCapilla(),
+                              onPressed: () async {
+                                if (!await ensureUnlocked()) return;
+                                controller.deleteLastCapilla();
+                              },
                             )
-                          : const Icon(Icons.lock_outline, color: Colors.black38),
+                          : const Icon(
+                              Icons.lock_outline,
+                              color: Colors.black38,
+                            ),
                     );
                   },
                 ),
@@ -625,12 +1016,15 @@ class _TrampasPanel extends StatelessWidget {
 
   final double maxFactor;
 
+  final Future<bool> Function() ensureUnlocked;
+
   const _TrampasPanel({
     required this.map,
     required this.controller,
     required this.expanded,
     required this.onToggle,
     required this.maxFactor,
+    required this.ensureUnlocked,
   });
 
   @override
@@ -649,11 +1043,16 @@ class _TrampasPanel extends StatelessWidget {
             InkWell(
               onTap: () => onToggle(!expanded),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    Text("${map.traps.length} trampa${map.traps.length == 1 ? "" : "s"}",
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      "${map.traps.length} trampa${map.traps.length == 1 ? "" : "s"}",
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     const Spacer(),
                     Icon(expanded ? Icons.expand_more : Icons.expand_less),
                   ],
@@ -664,22 +1063,59 @@ class _TrampasPanel extends StatelessWidget {
             if (expanded)
               Expanded(
                 child: map.traps.isEmpty
-                    ? const Center(child: Text("Aún no hay trampas. Presiona “Trampa” abajo."))
+                    ? const Center(
+                        child: Text(
+                          "Aún no hay trampas. Presiona “Trampa” abajo.",
+                        ),
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.only(bottom: 8),
                         itemCount: map.traps.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final t = map.traps[i];
+
                           return ListTile(
                             dense: true,
-                            leading: const Icon(Icons.location_on_outlined),
-                            title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            leading: Icon(
+                              t.active
+                                  ? Icons.location_on_outlined
+                                  : Icons.location_off_outlined,
+                            ),
+                            title: Text(
+                              t.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             subtitle: Text("Casillas: ${t.cells.length}"),
-                            trailing: IconButton(
-                              tooltip: "Eliminar trampa",
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => controller.deleteTrap(t.id),
+                            trailing: Wrap(
+                              spacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Tooltip(
+                                  message: t.active ? 'Activa' : 'Inactiva',
+                                  child: Switch.adaptive(
+                                    value: t.active,
+                                    onChanged: (v) async {
+                                      if (!await ensureUnlocked()) return;
+                                      controller.setTrapActive(t.id, v);
+                                    },
+                                    activeColor: AppTheme.pepperGreen,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: "Eliminar trampa",
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () async {
+                                    if (!await ensureUnlocked()) return;
+                                    controller.deleteTrap(t.id);
+                                  },
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -695,7 +1131,7 @@ class _TrampasPanel extends StatelessWidget {
 // ========================= CREATE MAP WIZARD =========================
 
 class _CreateMapWizard extends StatefulWidget {
-  final void Function({
+  final Future<void> Function({
     required String name,
     required int postsNorth,
     required int postsSouth,
@@ -703,7 +1139,8 @@ class _CreateMapWizard extends StatefulWidget {
     required bool stripedLines,
     required String stripedStart,
     required NS lineStartSide,
-  }) onCreate;
+  })
+  onCreate;
 
   const _CreateMapWizard({required this.onCreate});
 
@@ -745,7 +1182,10 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Crear mapa", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const Text(
+                "Crear mapa",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: nameCtrl,
@@ -760,7 +1200,9 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
                     child: TextField(
                       controller: postsNCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Postes Norte (0 si no hay)"),
+                      decoration: const InputDecoration(
+                        labelText: "Postes Norte (0 si no hay)",
+                      ),
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -769,7 +1211,9 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
                     child: TextField(
                       controller: postsSCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: "Postes Sur (0 si no hay)"),
+                      decoration: const InputDecoration(
+                        labelText: "Postes Sur (0 si no hay)",
+                      ),
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -779,7 +1223,9 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
               TextField(
                 controller: firstLineCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "¿Desde qué número empiezan las líneas?"),
+                decoration: const InputDecoration(
+                  labelText: "¿Desde qué número empiezan las líneas?",
+                ),
               ),
               const SizedBox(height: 12),
               if (bothSides) ...[
@@ -790,10 +1236,17 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
                     border: OutlineInputBorder(),
                   ),
                   items: const [
-                    DropdownMenuItem(value: NS.north, child: Text("Inicia en NORTE (línea inicial)")),
-                    DropdownMenuItem(value: NS.south, child: Text("Inicia en SUR (línea inicial)")),
+                    DropdownMenuItem(
+                      value: NS.north,
+                      child: Text("Inicia en NORTE (línea inicial)"),
+                    ),
+                    DropdownMenuItem(
+                      value: NS.south,
+                      child: Text("Inicia en SUR (línea inicial)"),
+                    ),
                   ],
-                  onChanged: (v) => setState(() => lineStartSide = v ?? NS.north),
+                  onChanged: (v) =>
+                      setState(() => lineStartSide = v ?? NS.north),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -807,12 +1260,19 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
               DropdownButtonFormField<String>(
                 value: stripedStart,
                 decoration: InputDecoration(
-                  labelText: "¿Con qué color empieza la línea inicial ($startSideLabel)?",
+                  labelText:
+                      "¿Con qué color empieza la línea inicial ($startSideLabel)?",
                   border: const OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(value: "WHITE", child: Text("Empieza en BLANCO")),
-                  DropdownMenuItem(value: "GREEN", child: Text("Empieza en VERDE")),
+                  DropdownMenuItem(
+                    value: "WHITE",
+                    child: Text("Empieza en BLANCO"),
+                  ),
+                  DropdownMenuItem(
+                    value: "GREEN",
+                    child: Text("Empieza en VERDE"),
+                  ),
                 ],
                 onChanged: (v) => setState(() => stripedStart = (v ?? "WHITE")),
               ),
@@ -822,8 +1282,11 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.check),
                   label: const Text("Crear"),
-                  style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white),
-                  onPressed: () {
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
                     final name = nameCtrl.text.trim();
                     final pn2 = int.tryParse(postsNCtrl.text.trim()) ?? 0;
                     final ps2 = int.tryParse(postsSCtrl.text.trim()) ?? 0;
@@ -831,13 +1294,19 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
 
                     if (name.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Escribe el nombre del invernadero")),
+                        const SnackBar(
+                          content: Text("Escribe el nombre del invernadero"),
+                        ),
                       );
                       return;
                     }
                     if (pn2 <= 0 && ps2 <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Debes tener postes en Norte o en Sur (al menos uno).")),
+                        const SnackBar(
+                          content: Text(
+                            "Debes tener postes en Norte o en Sur (al menos uno).",
+                          ),
+                        ),
                       );
                       return;
                     }
@@ -846,7 +1315,7 @@ class _CreateMapWizardState extends State<_CreateMapWizard> {
                     if (pn2 > 0 && ps2 <= 0) startSide = NS.north;
                     if (ps2 > 0 && pn2 <= 0) startSide = NS.south;
 
-                    widget.onCreate(
+                    await widget.onCreate(
                       name: name,
                       postsNorth: pn2,
                       postsSouth: ps2,

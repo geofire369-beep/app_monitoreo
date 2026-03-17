@@ -25,6 +25,11 @@ dependencies:
   keyboard_height: ^1.0.8
   excel: ^4.0.6
   intl: ^0.19.0
+  path_provider: ^2.1.4
+  docx_template: ^0.4.0
+  share_plus: ^12.0.1
+  file_selector: ^1.1.0
+  file_saver: ^0.3.1
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +44,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - assets/templates/monitoreo_template.docx
 
 flutter_launcher_icons:
   android: true

@@ -1,3 +1,4 @@
+// lib/pages/admin/mapa/mapa_controller.dart
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +18,16 @@ class MapaController extends ChangeNotifier {
   PaintTool get tool => _tool;
 
   Timer? _notifyTimer;
+
+  // ========================= NUEVO: ZONAS BLOQUEADAS HASTA ACTIVAR =========================
+  bool _zonesEnabled = false;
+  bool get zonesEnabled => _zonesEnabled;
+
+  void setZonesEnabled(bool v) {
+    if (_zonesEnabled == v) return;
+    _zonesEnabled = v;
+    notifyListeners();
+  }
 
   // ========================= TRAMPAS (state) =========================
 
@@ -46,6 +57,55 @@ class MapaController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ========================= SEMANAS: trampas activas =========================
+
+  /// ✅ Snapshot “histórico”: solo lo crea si NO existe.
+  void _ensureWeeklyActiveTrapsSnapshotForWeek(String wk) {
+    if (_map == null) return;
+    _map!.weeklyActiveTraps.putIfAbsent(wk, () => _map!.activeTrapCount);
+  }
+
+  /// ✅ Semana actual SI se actualiza cuando cambias trampas (activar/desactivar/agregar/eliminar)
+  /// para que al presionar “Guardar” se persista el número correcto.
+  void _setCurrentWeekActiveTrapsToCurrentCount() {
+    if (_map == null) return;
+    final nowWk = weekKeyFromDate(DateTime.now());
+    _map!.weeklyActiveTraps[nowWk] = _map!.activeTrapCount;
+  }
+
+  /// ✅ Asegura snapshots faltantes para semanas conocidas (plantas) y semana actual.
+  /// - Semanas con plantas: snapshot si faltaba (NO pisa histórico)
+  /// - Semana actual: si faltaba crea snapshot; si ya existe NO toca aquí (para no pisar)
+  void _ensureSnapshotsForKnownWeeks() {
+    if (_map == null) return;
+
+    for (final wk in _map!.weeklyPlants.keys) {
+      _ensureWeeklyActiveTrapsSnapshotForWeek(wk);
+    }
+
+    final nowWk = weekKeyFromDate(DateTime.now());
+    _ensureWeeklyActiveTrapsSnapshotForWeek(nowWk);
+  }
+
+  // ========================= Plantas semanales =========================
+
+  int? plantsForWeek(DateTime date) {
+    if (_map == null) return null;
+    final k = weekKeyFromDate(date);
+    return _map!.weeklyPlants[k];
+  }
+
+  void setPlantsForWeek(DateTime date, int total) {
+    if (_map == null) return;
+    final k = weekKeyFromDate(date);
+    _map!.weeklyPlants[k] = total;
+
+    // ✅ cuando guardas plantas, guardas snapshot de trampas activas de ESA semana
+    _map!.weeklyActiveTraps[k] = _map!.activeTrapCount;
+
+    notifyListeners();
+  }
+
   // ========================= TRAMPAS (actions) =========================
 
   void startTrapMode() {
@@ -62,18 +122,20 @@ class MapaController extends ChangeNotifier {
   }
 
   bool isDraftTrapCell(NS side, int poste, int lineNo) {
-    return _draftTrapCells.any((c) => c.side == side && c.poste == poste && c.lineNo == lineNo);
+    return _draftTrapCells.any(
+      (c) => c.side == side && c.poste == poste && c.lineNo == lineNo,
+    );
   }
 
   void toggleDraftTrapCell(NS side, int poste, int lineNo) {
     if (_map == null) return;
 
-    // Solo permitir marcar si la celda existe en ese lado (lineNo no nulo en esa col)
-    // y también si está activa (opcional, pero lo dejamos para consistencia).
     final exists = _cellExistsOnMap(side, poste, lineNo);
     if (!exists) return;
 
-    final idx = _draftTrapCells.indexWhere((c) => c.side == side && c.poste == poste && c.lineNo == lineNo);
+    final idx = _draftTrapCells.indexWhere(
+      (c) => c.side == side && c.poste == poste && c.lineNo == lineNo,
+    );
     if (idx >= 0) {
       _draftTrapCells.removeAt(idx);
     } else {
@@ -87,11 +149,25 @@ class MapaController extends ChangeNotifier {
     if (_draftTrapCells.isEmpty) return;
 
     final id = "trap_${DateTime.now().millisecondsSinceEpoch}";
-    _map!.traps.add(TrapDef(id: id, name: name.trim(), cells: List<TrapCell>.from(_draftTrapCells)));
+    _map!.traps.add(
+      TrapDef(
+        id: id,
+        name: name.trim(),
+        active: true,
+        cells: List<TrapCell>.from(_draftTrapCells),
+      ),
+    );
 
     _map!.invalidateTrapCache();
     _trapMode = false;
     _draftTrapCells.clear();
+
+    // ✅ histórico: no tocar semanas pasadas; solo asegurar faltantes
+    _ensureSnapshotsForKnownWeeks();
+
+    // ✅ PERO: semana actual sí debe reflejar el cambio
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
     notifyListeners();
   }
 
@@ -99,17 +175,38 @@ class MapaController extends ChangeNotifier {
     if (_map == null) return;
     _map!.traps.removeWhere((t) => t.id == trapId);
     _map!.invalidateTrapCache();
+
+    _ensureSnapshotsForKnownWeeks();
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
+    notifyListeners();
+  }
+
+  void setTrapActive(String trapId, bool active) {
+    if (_map == null) return;
+    final t = _map!.trapById(trapId);
+    if (t == null) return;
+
+    if (t.active == active) return;
+
+    t.active = active;
+    _map!.invalidateTrapCache();
+
+    _ensureSnapshotsForKnownWeeks();
+
+    // ✅ aquí está lo que pediste: al activar/desactivar desde el panel,
+    // la semana actual se actualiza (y se va a guardar al presionar Guardar).
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
     notifyListeners();
   }
 
   bool _cellExistsOnMap(NS side, int poste, int lineNo) {
     if (_map == null) return false;
 
-    // Validar poste
     final maxPost = side == NS.north ? _map!.postsNorth : _map!.postsSouth;
     if (poste < 1 || poste > maxPost) return false;
 
-    // Validar que lineNo exista en el mapa (en algún columnInfo del lado correcto)
     for (int col = 0; col < _map!.totalColumns; col++) {
       final info = _map!.columnInfo(col);
       final ln = side == NS.north ? info.northLineNo : info.southLineNo;
@@ -126,8 +223,8 @@ class MapaController extends ChangeNotifier {
     required int postsSouth,
     required int firstLineNo,
     required bool stripedLines,
-    required String stripedStart, // WHITE/GREEN (del lado lineStartSide)
-    required NS lineStartSide, // NORTH/SOUTH (si ambos)
+    required String stripedStart,
+    required NS lineStartSide,
   }) {
     final tempId = "local_${DateTime.now().millisecondsSinceEpoch}";
 
@@ -145,6 +242,12 @@ class MapaController extends ChangeNotifier {
       stripedStart: colorNorm(stripedStart),
       lineStartSide: effectiveStartSide,
     );
+
+    // crea snapshot semana actual si falta
+    _ensureSnapshotsForKnownWeeks();
+    // y asegura valor de semana actual (por si ya hay trampas cargadas)
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
     notifyListeners();
   }
 
@@ -163,7 +266,6 @@ class MapaController extends ChangeNotifier {
     var effMode = mode;
     var effAdvanced = advanced;
 
-    // si el invernadero es solo N o solo S, forzar modo
     if (_map!.postsNorth <= 0 && _map!.postsSouth > 0) {
       effMode = CapSideMode.southOnly;
       effAdvanced = false;
@@ -174,7 +276,9 @@ class MapaController extends ChangeNotifier {
     }
 
     final isFirst = _map!.capillas.isEmpty;
-    final start = isFirst ? (overrideStartLineNo ?? _map!.firstLineNo) : (_map!.lastLineNo + 1);
+    final start = isFirst
+        ? (overrideStartLineNo ?? _map!.firstLineNo)
+        : (_map!.lastLineNo + 1);
     final end = start + lineCount - 1;
 
     List<CapSegment> segments = [];
@@ -192,7 +296,8 @@ class MapaController extends ChangeNotifier {
 
       if (remaining > 0) {
         final remMode =
-            (remainderMode == CapSideMode.northOnly || remainderMode == CapSideMode.southOnly)
+            (remainderMode == CapSideMode.northOnly ||
+                    remainderMode == CapSideMode.southOnly)
                 ? remainderMode!
                 : CapSideMode.southOnly;
         segments.add(CapSegment(mode: remMode, lineCount: remaining));
@@ -223,6 +328,9 @@ class MapaController extends ChangeNotifier {
 
   void paintCell(NS ns, int poste, int lineNo, {bool notify = true}) {
     if (_map == null) return;
+
+    // ✅ bloqueado hasta activar "Editar zonas"
+    if (!_zonesEnabled) return;
 
     final maxPost = ns == NS.north ? _map!.postsNorth : _map!.postsSouth;
     if (poste < 1 || poste > maxPost) return;
@@ -259,17 +367,28 @@ class MapaController extends ChangeNotifier {
       throw Exception("El nombre del invernadero es obligatorio.");
     }
 
-    final q = await _db.collection("greenhouses_maps").where("name", isEqualTo: cleanName).limit(1).get();
+    final q = await _db
+        .collection("greenhouses_maps")
+        .where("name", isEqualTo: cleanName)
+        .limit(1)
+        .get();
 
     if (q.docs.isNotEmpty) {
       final existingId = q.docs.first.id;
       final isNew = _map!.id.startsWith("local_");
       if (isNew || existingId != _map!.id) {
-        throw Exception('Ya existe un invernadero con el nombre "$cleanName". Usa otro nombre.');
+        throw Exception(
+          'Ya existe un invernadero con el nombre "$cleanName". Usa otro nombre.',
+        );
       }
     }
 
-    // toMap() guarda traps
+    // ✅ antes de guardar:
+    // - asegurar snapshots faltantes para semanas con plantas
+    // - actualizar semana actual (para que lo de activar/desactivar quede persistido)
+    _ensureSnapshotsForKnownWeeks();
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
     final data = _map!.toMap();
 
     try {
@@ -280,10 +399,10 @@ class MapaController extends ChangeNotifier {
         notifyListeners();
         return doc.id;
       } else {
-        await _db.collection("greenhouses_maps").doc(_map!.id).set(
-              data,
-              SetOptions(merge: true),
-            );
+        await _db
+            .collection("greenhouses_maps")
+            .doc(_map!.id)
+            .set(data, SetOptions(merge: true));
         return _map!.id;
       }
     } on FirebaseException catch (e) {
@@ -291,10 +410,27 @@ class MapaController extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteFromFirestore() async {
+    if (_map == null) return;
+    if (_map!.id.startsWith("local_")) {
+      _map = null;
+      notifyListeners();
+      return;
+    }
+    await _db.collection("greenhouses_maps").doc(_map!.id).delete();
+    _map = null;
+    notifyListeners();
+  }
+
   Future<void> loadFromFirestore(String docId) async {
     final snap = await _db.collection("greenhouses_maps").doc(docId).get();
     if (!snap.exists) throw Exception("No existe ese documento");
     _map = GreenhouseMap.fromDoc(snap.id, snap.data()!);
+
+    // snapshots faltantes y semana actual consistente
+    _ensureSnapshotsForKnownWeeks();
+    _setCurrentWeekActiveTrapsToCurrentCount();
+
     _map!.invalidateColumnCache();
     notifyListeners();
   }

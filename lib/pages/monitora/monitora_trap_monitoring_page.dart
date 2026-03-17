@@ -1,3 +1,4 @@
+// lib/pages/monitora/monitora_trap_monitoring_page.dart
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,14 +40,20 @@ class MonitoraTrapMonitoringPage extends StatefulWidget {
   });
 
   @override
-  State<MonitoraTrapMonitoringPage> createState() => _MonitoraTrapMonitoringPageState();
+  State<MonitoraTrapMonitoringPage> createState() =>
+      _MonitoraTrapMonitoringPageState();
 }
 
-class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage> {
-  // ✅ YA NO predefinidas. Se cargan desde Firestore.
+class _MonitoraTrapMonitoringPageState
+    extends State<MonitoraTrapMonitoringPage> {
   final _fs = FirebaseFirestore.instance;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _pestsSub;
-  final List<String> _pestsFromDb = [];
+
+  // ✅ favoritos para MONITOREO DE TRAMPA
+  static const String _favTrapField = 'favTrap';
+
+  final List<String> _pestsFavTrap = [];
+  final List<String> _pestsNonFav = [];
 
   static const String _otherOption = 'Otra…';
 
@@ -63,12 +70,17 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
   late final String _lineKey; // north_7 / south_7
   late final String _sideLabel;
 
+  // ✅ helper: trampas activas (guardrail)
+  List<TrapDef> get _activeTraps =>
+      widget.traps.where((t) => t.active == true).toList();
+
   @override
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
 
-    _capName = (widget.capilla.name == null || widget.capilla.name!.trim().isEmpty)
+    _capName =
+        (widget.capilla.name == null || widget.capilla.name!.trim().isEmpty)
         ? '(sin nombre)'
         : widget.capilla.name!.trim();
 
@@ -88,29 +100,35 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
   // -------------------- PESTS (Firestore) --------------------
 
-  List<String> get _pestOptions {
-    // Siempre dejamos "Otra…" al final
-    final base = List<String>.from(_pestsFromDb);
-    base.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    if (!base.contains(_otherOption)) base.add(_otherOption);
-    return base;
-  }
-
   void _listenPests() {
-    // plagas: { nombre, niveles, tipo }
-    _pestsSub = _fs.collection('plagas').orderBy('nombre').snapshots().listen((snap) {
-      final names = <String>[];
+    // plagas: { nombre, niveles, tipo, favTrap }
+    _pestsSub = _fs.collection('plagas').orderBy('nombre').snapshots().listen((
+      snap,
+    ) {
+      final fav = <String>[];
+      final non = <String>[];
+
       for (final d in snap.docs) {
         final m = d.data();
         final nombre = (m['nombre'] ?? '').toString().trim();
-        if (nombre.isNotEmpty) names.add(nombre);
+        if (nombre.isEmpty) continue;
+
+        final isFavTrap = (m[_favTrapField] == true);
+        if (isFavTrap) {
+          fav.add(nombre);
+        } else {
+          non.add(nombre);
+        }
       }
 
       if (!mounted) return;
       setState(() {
-        _pestsFromDb
+        _pestsFavTrap
           ..clear()
-          ..addAll(names);
+          ..addAll(fav);
+        _pestsNonFav
+          ..clear()
+          ..addAll(non);
       });
     }, onError: (_) {});
   }
@@ -119,11 +137,23 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
     final name = rawName.trim();
     if (name.isEmpty) return null;
 
-    // Si ya existe (case-insensitive), no duplicar
-    final exists = _pestsFromDb.any((p) => p.toLowerCase() == name.toLowerCase());
-    if (exists) {
-      // regresa el nombre tal cual como lo escribió (o puedes normalizar)
-      return _pestsFromDb.firstWhere((p) => p.toLowerCase() == name.toLowerCase(), orElse: () => name);
+    final existsFav = _pestsFavTrap.any(
+      (p) => p.toLowerCase() == name.toLowerCase(),
+    );
+    final existsNon = _pestsNonFav.any(
+      (p) => p.toLowerCase() == name.toLowerCase(),
+    );
+    if (existsFav || existsNon) {
+      final inFav = _pestsFavTrap.firstWhere(
+        (p) => p.toLowerCase() == name.toLowerCase(),
+        orElse: () => '',
+      );
+      if (inFav.trim().isNotEmpty) return inFav;
+
+      return _pestsNonFav.firstWhere(
+        (p) => p.toLowerCase() == name.toLowerCase(),
+        orElse: () => name,
+      );
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -132,13 +162,16 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       'nombre': name,
       'tipo': 'PLAGA',
       'niveles': <String>[],
+      'favTrap': false,
+      'favPlaga': false,
       'createdByUid': uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // actualiza local inmediato para que aparezca ya
-    if (!_pestsFromDb.any((p) => p.toLowerCase() == name.toLowerCase())) {
-      setState(() => _pestsFromDb.add(name));
+    // actualiza local inmediato para que aparezca ya (no favorita)
+    if (!_pestsNonFav.any((p) => p.toLowerCase() == name.toLowerCase()) &&
+        !_pestsFavTrap.any((p) => p.toLowerCase() == name.toLowerCase())) {
+      if (mounted) setState(() => _pestsNonFav.add(name));
     }
 
     return name;
@@ -190,7 +223,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       if (!mounted) return;
       setState(() {
         _startedAt = restoredStartedAt;
-        _idx = idx.clamp(0, (widget.traps.isEmpty ? 0 : widget.traps.length - 1));
+
+        final traps = _activeTraps;
+        _idx = idx.clamp(0, (traps.isEmpty ? 0 : traps.length - 1));
       });
 
       _lastDraftFingerprint = _computeDraftFingerprint(
@@ -216,18 +251,20 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
       final countsJson = _countsToJson();
 
-      unawaited(Future<void>(() async {
-        await OfflineSyncService.instance.saveDraft(
-          weekKey: _weekKey,
-          greenhouseId: widget.map.id,
-          capillaId: widget.capilla.id,
-          lineKey: _draftLineKey,
-          startedAtMs: _startedAt.millisecondsSinceEpoch,
-          rightPass: false,
-          idx: _idx,
-          countsJson: countsJson,
-        );
-      }));
+      unawaited(
+        Future<void>(() async {
+          await OfflineSyncService.instance.saveDraft(
+            weekKey: _weekKey,
+            greenhouseId: widget.map.id,
+            capillaId: widget.capilla.id,
+            lineKey: _draftLineKey,
+            startedAtMs: _startedAt.millisecondsSinceEpoch,
+            rightPass: false,
+            idx: _idx,
+            countsJson: countsJson,
+          );
+        }),
+      );
     });
   }
 
@@ -272,7 +309,8 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
   Widget build(BuildContext context) {
     final accent = AppTheme.pepperGreen;
 
-    final traps = widget.traps;
+    final traps = _activeTraps;
+
     if (traps.isEmpty) {
       return Scaffold(
         appBar: AppBar(
@@ -314,7 +352,7 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'No hay trampas registradas en esta línea.\n(Revisa en el editor de mapas.)',
+                      'No hay trampas ACTIVAS en esta línea.\n(Revisa en el editor de mapas.)',
                       style: TextStyle(
                         color: Colors.black.withValues(alpha: 0.70),
                         fontWeight: FontWeight.w800,
@@ -329,16 +367,15 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       );
     }
 
+    if (_idx < 0) _idx = 0;
+    if (_idx >= traps.length) _idx = traps.length - 1;
+
     final bg = Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            accent.withValues(alpha: 0.10),
-            Colors.white,
-            Colors.white,
-          ],
+          colors: [accent.withValues(alpha: 0.10), Colors.white, Colors.white],
         ),
       ),
     );
@@ -370,7 +407,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                     capName: _capName,
                     lineNo: widget.lineNo,
                     sideLabel: _sideLabel,
-                    trapLabel: currentTrap.name.trim().isEmpty ? '(sin nombre)' : currentTrap.name.trim(),
+                    trapLabel: currentTrap.name.trim().isEmpty
+                        ? '(sin nombre)'
+                        : currentTrap.name.trim(),
                     indexLabel: '${_idx + 1}/${traps.length}',
                   );
 
@@ -383,7 +422,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
                   final trapBadge = _TrapBadge(
                     accent: accent,
-                    label: currentTrap.name.trim().isEmpty ? 'Trampa' : currentTrap.name.trim(),
+                    label: currentTrap.name.trim().isEmpty
+                        ? 'Trampa'
+                        : currentTrap.name.trim(),
                   );
 
                   final addButton = SizedBox(
@@ -393,13 +434,18 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                       style: FilledButton.styleFrom(
                         backgroundColor: accent,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       onPressed: () => _addOrEditPestDialog(trap: currentTrap),
                       icon: const Icon(Icons.add_rounded),
                       label: const Text(
                         'Agregar plaga encontrada',
-                        style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.2),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                        ),
                       ),
                     ),
                   );
@@ -408,7 +454,8 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                       ? _EmptyState(
                           accent: accent,
                           title: 'Sin registros',
-                          message: 'Aún no registras plagas en esta trampa.\nUsa “Agregar plaga encontrada”.',
+                          message:
+                              'Aún no registras plagas en esta trampa.\nUsa “Agregar plaga encontrada”.',
                           icon: Icons.bug_report_outlined,
                         )
                       : ListView.builder(
@@ -418,7 +465,11 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                             final pest = trapCounts.keys.elementAt(i);
                             final qty = trapCounts[pest] ?? 0;
                             if (qty <= 0) return const SizedBox.shrink();
-                            return _pestRow(trap: currentTrap, pest: pest, qty: qty);
+                            return _pestRow(
+                              trap: currentTrap,
+                              pest: pest,
+                              qty: qty,
+                            );
                           },
                         );
 
@@ -428,7 +479,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+                          border: Border.all(
+                            color: Colors.black.withValues(alpha: 0.08),
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.06),
@@ -448,12 +501,12 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                   final navigation = _NavigationBar(
                     accent: accent,
                     canGoBack: _idx > 0,
-                    isLast: _isLast(),
+                    isLast: _isLast(traps),
                     onBack: _goBack,
-                    onNext: _goNext,
+                    onNext: () => _goNext(traps),
                   );
 
-                  final finishButton = _isLast()
+                  final finishButton = _isLast(traps)
                       ? SizedBox(
                           width: double.infinity,
                           height: 52,
@@ -461,14 +514,21 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.pepperRed,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                               elevation: 0,
                             ),
-                            onPressed: _finishAndSaveOfflineFirst,
-                            icon: const Icon(Icons.check_circle_outline_rounded),
+                            onPressed: () => _finishAndSaveOfflineFirst(traps),
+                            icon: const Icon(
+                              Icons.check_circle_outline_rounded,
+                            ),
                             label: const Text(
                               'Finalizar monitoreo de trampa en esta línea',
-                              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.2),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
                         )
@@ -496,7 +556,10 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                   final rightColumn = Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SectionTitle(accent: accent, title: "Plagas registradas"),
+                      _SectionTitle(
+                        accent: accent,
+                        title: "Plagas registradas",
+                      ),
                       const SizedBox(height: 10),
                       listCard,
                     ],
@@ -533,9 +596,13 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
   // ---------------- Data helpers ----------------
 
-  bool _isLast() => _idx >= widget.traps.length - 1;
+  bool _isLast(List<TrapDef> traps) => _idx >= traps.length - 1;
 
-  void _setPestForTrap({required String trapId, required String pest, required int qty}) {
+  void _setPestForTrap({
+    required String trapId,
+    required String pest,
+    required int qty,
+  }) {
     if (qty <= 0) {
       final current = _countsByTrap[trapId];
       current?.remove(pest);
@@ -551,7 +618,11 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
   // ---------------- UI rows ----------------
 
-  Widget _pestRow({required TrapDef trap, required String pest, required int qty}) {
+  Widget _pestRow({
+    required TrapDef trap,
+    required String pest,
+    required int qty,
+  }) {
     final accent = AppTheme.pepperGreen;
 
     return Container(
@@ -599,9 +670,14 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
             ),
             IconButton(
               tooltip: 'Eliminar',
-              icon: Icon(Icons.delete_outline_rounded, color: Colors.red.withValues(alpha: 0.90)),
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.red.withValues(alpha: 0.90),
+              ),
               onPressed: () {
-                setState(() => _setPestForTrap(trapId: trap.id, pest: pest, qty: 0));
+                setState(
+                  () => _setPestForTrap(trapId: trap.id, pest: pest, qty: 0),
+                );
                 _scheduleDraftSave();
               },
             ),
@@ -611,6 +687,12 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
     );
   }
 
+  // ✅ MODIFICADO: MISMO COMPORTAMIENTO QUE EN MONITOREO DE PLAGA
+  // - UN solo listado de selección
+  // - Favoritas (favTrap) primero
+  // - Buscador SIEMPRE activo (filtra fav y no fav)
+  // - Botón "Otras" despliega no favoritas abajo (sin quitar favoritas)
+  // - "Otra…" solo aparece al final cuando "Otras" está abierto
   Future<void> _addOrEditPestDialog({
     required TrapDef trap,
     String? presetPest,
@@ -618,8 +700,24 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
   }) async {
     final accent = AppTheme.pepperGreen;
 
-    final opts = _pestOptions;
-    String selected = presetPest ?? (opts.isNotEmpty ? opts.first : _otherOption);
+    // selección inicial: si edita -> la misma; si no, una favorita si existe
+    String selected =
+        presetPest ??
+        (_pestsFavTrap.isNotEmpty
+            ? _pestsFavTrap.first
+            : (_pestsNonFav.isNotEmpty ? _pestsNonFav.first : _otherOption));
+
+    // si la plaga seleccionada no está en favoritas => abrimos "Otras" (para que aparezca)
+    bool othersOpen = false;
+    if (presetPest != null) {
+      final lc = presetPest.trim().toLowerCase();
+      final inFav = _pestsFavTrap.any((p) => p.trim().toLowerCase() == lc);
+      final inNon = _pestsNonFav.any((p) => p.trim().toLowerCase() == lc);
+      if (!inFav && inNon) othersOpen = true;
+    }
+
+    final searchCtrl = TextEditingController();
+    String query = '';
 
     final qtyCtrl = TextEditingController(text: (presetQty ?? 1).toString());
     final otherCtrl = TextEditingController();
@@ -668,12 +766,101 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                     child: Card(
                       elevation: 18,
                       shadowColor: Colors.black.withValues(alpha: 0.30),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
                       child: StatefulBuilder(
                         builder: (ctx, setLocal) {
-                          final optionsNow = _pestOptions;
-                          if (!optionsNow.contains(selected)) {
-                            selected = optionsNow.isNotEmpty ? optionsNow.first : _otherOption;
+                          final fav = List<String>.from(_pestsFavTrap)
+                            ..sort(
+                              (a, b) =>
+                                  a.toLowerCase().compareTo(b.toLowerCase()),
+                            );
+                          final non = List<String>.from(_pestsNonFav)
+                            ..sort(
+                              (a, b) =>
+                                  a.toLowerCase().compareTo(b.toLowerCase()),
+                            );
+
+                          final q = query.trim().toLowerCase();
+
+                          final favFiltered = fav.where((p) {
+                            if (q.isEmpty) return true;
+                            return p.toLowerCase().contains(q);
+                          }).toList();
+
+                          final nonFiltered = non.where((p) {
+                            if (q.isEmpty) return true;
+                            return p.toLowerCase().contains(q);
+                          }).toList();
+
+                          final items = <String>[
+                            ...favFiltered,
+                            if (othersOpen) ...nonFiltered,
+                            if (othersOpen) _otherOption,
+                          ];
+
+                          // clamp selected si ya no existe en items
+                          final selectedOk = selected == _otherOption
+                              ? items.contains(_otherOption)
+                              : items.any(
+                                  (x) =>
+                                      x.toLowerCase() == selected.toLowerCase(),
+                                );
+
+                          if (!selectedOk) {
+                            if (items.isNotEmpty) {
+                              selected = items.first;
+                            } else {
+                              selected = _otherOption;
+                              othersOpen = true;
+                            }
+                          }
+
+                          Widget itemTile(String label) {
+                            final sel =
+                                selected.toLowerCase() == label.toLowerCase();
+                            final isOther = label == _otherOption;
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? accent.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.02),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: sel
+                                      ? accent.withValues(alpha: 0.25)
+                                      : Colors.black.withValues(alpha: 0.10),
+                                ),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                leading: Icon(
+                                  isOther
+                                      ? Icons.edit_outlined
+                                      : Icons.bug_report_outlined,
+                                  color: sel
+                                      ? accent
+                                      : Colors.black.withValues(alpha: 0.55),
+                                ),
+                                title: Text(
+                                  label,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: sel
+                                        ? accent
+                                        : Colors.black.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                                trailing: sel
+                                    ? Icon(Icons.check_rounded, color: accent)
+                                    : null,
+                                onTap: () => setLocal(() => selected = label),
+                              ),
+                            );
                           }
 
                           return SingleChildScrollView(
@@ -688,7 +875,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                   decoration: BoxDecoration(
                                     color: accent.withValues(alpha: 0.10),
                                     borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: accent.withValues(alpha: 0.18)),
+                                    border: Border.all(
+                                      color: accent.withValues(alpha: 0.18),
+                                    ),
                                   ),
                                   child: Row(
                                     children: [
@@ -697,27 +886,39 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                         height: 46,
                                         decoration: BoxDecoration(
                                           color: accent.withValues(alpha: 0.18),
-                                          borderRadius: BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                         ),
                                         child: Icon(
-                                          presetPest == null ? Icons.add_rounded : Icons.edit_rounded,
+                                          presetPest == null
+                                              ? Icons.add_rounded
+                                              : Icons.edit_rounded,
                                           color: accent,
                                         ),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              presetPest == null ? 'Agregar plaga' : 'Editar plaga',
-                                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                                              presetPest == null
+                                                  ? 'Agregar plaga'
+                                                  : 'Editar plaga',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 16,
+                                              ),
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              '$trapLabel • Solo se guardan cantidades > 0',
+                                              '$trapLabel • Favoritas primero',
                                               style: TextStyle(
-                                                color: Colors.black.withValues(alpha: 0.62),
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.62,
+                                                ),
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
@@ -726,7 +927,8 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                       ),
                                       IconButton(
                                         tooltip: 'Cerrar',
-                                        onPressed: () => Navigator.pop(ctx, false),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
                                         icon: const Icon(Icons.close_rounded),
                                       ),
                                     ],
@@ -734,17 +936,84 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                 ),
                                 const SizedBox(height: 14),
 
-                                DropdownButtonFormField<String>(
-                                  value: selected,
-                                  decoration: deco(label: 'Plaga', icon: Icons.bug_report_outlined),
-                                  items: optionsNow
-                                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                                      .toList(),
-                                  onChanged: (v) => setLocal(() => selected = v ?? selected),
+                                // ✅ buscador siempre activo
+                                TextField(
+                                  controller: searchCtrl,
+                                  onChanged: (v) => setLocal(() => query = v),
+                                  decoration: deco(
+                                    label: 'Buscar plaga',
+                                    hint: 'Escribe el nombre…',
+                                    icon: Icons.search_rounded,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+
+                                SizedBox(
+                                  height: 280,
+                                  child: Scrollbar(
+                                    thumbVisibility: true,
+                                    child: ListView(
+                                      children: [
+                                        for (final it in items) itemTile(it),
+                                        if (items.isEmpty)
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.02,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.10,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Sin resultados.',
+                                              style: TextStyle(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.65,
+                                                ),
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+
+                                // ✅ Otras: solo abre/cierra (no quita favoritas)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: () => setLocal(
+                                      () => othersOpen = !othersOpen,
+                                    ),
+                                    icon: Icon(
+                                      Icons.layers_outlined,
+                                      color: Colors.black.withValues(
+                                        alpha: 0.75,
+                                      ),
+                                    ),
+                                    label: Text(
+                                      othersOpen ? 'Ocultar otras' : 'Otras',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.black.withValues(
+                                          alpha: 0.75,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
 
                                 if (selected == _otherOption) ...[
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
                                   TextField(
                                     controller: otherCtrl,
                                     textInputAction: TextInputAction.next,
@@ -760,7 +1029,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                 TextField(
                                   controller: qtyCtrl,
                                   keyboardType: TextInputType.number,
-                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
                                   textInputAction: TextInputAction.done,
                                   decoration: deco(
                                     label: 'Cantidad',
@@ -769,14 +1040,22 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                   ),
                                 ),
                                 const SizedBox(height: 14),
+
                                 Row(
                                   children: [
                                     Expanded(
                                       child: OutlinedButton(
-                                        onPressed: () => Navigator.pop(ctx, false),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
                                         style: OutlinedButton.styleFrom(
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
                                         ),
                                         child: const Text('Cancelar'),
                                       ),
@@ -784,12 +1063,19 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: FilledButton.icon(
-                                        onPressed: () => Navigator.pop(ctx, true),
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
                                         style: FilledButton.styleFrom(
                                           backgroundColor: accent,
                                           foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
                                         ),
                                         icon: const Icon(Icons.check_rounded),
                                         label: const Text('Guardar'),
@@ -811,7 +1097,10 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
         );
       },
       transitionBuilder: (_, anim, __, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
@@ -822,16 +1111,19 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       },
     );
 
+    searchCtrl.dispose();
+
     if (ok != true) return;
 
     final qty = int.tryParse(qtyCtrl.text.trim()) ?? 0;
 
-    // ✅ Si eligió "Otra…", creamos la plaga en BD y usamos el nombre escrito
     if (selected == _otherOption) {
       final created = await _createPestIfNeeded(otherCtrl.text);
       if (created == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Escribe el nombre de la plaga.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Escribe el nombre de la plaga.')),
+        );
         return;
       }
       selected = created;
@@ -849,15 +1141,15 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
     _scheduleDraftSave();
   }
 
-  void _goNext() {
-    if (_isLast()) return;
+  void _goNext(List<TrapDef> traps) {
+    if (_isLast(traps)) return;
     setState(() => _idx++);
     _scheduleDraftSave();
   }
 
   // ---------------- FINISH (OFFLINE FIRST) ----------------
 
-  Future<void> _finishAndSaveOfflineFirst() async {
+  Future<void> _finishAndSaveOfflineFirst(List<TrapDef> traps) async {
     final finishedAt = DateTime.now();
 
     final user = FirebaseAuth.instance.currentUser;
@@ -865,14 +1157,16 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
     if (uid == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay usuario autenticado.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay usuario autenticado.')),
+      );
       return;
     }
 
     final trapsObs = <String, dynamic>{};
     final totalsByPest = <String, int>{};
 
-    for (final trap in widget.traps) {
+    for (final trap in traps) {
       final trapId = trap.id;
       final pests = _countsByTrap[trapId] ?? {};
 
@@ -884,10 +1178,7 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
         }
       });
 
-      trapsObs[trapId] = {
-        'name': trap.name,
-        'counts': filtered,
-      };
+      trapsObs[trapId] = {'name': trap.name, 'counts': filtered};
     }
 
     final totalFindings = totalsByPest.values.fold<int>(0, (a, b) => a + b);
@@ -907,14 +1198,11 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
         'lineNo': widget.lineNo,
         'lineKey': _lineKey,
       },
-      'observations': {
-        'traps': trapsObs,
-      },
+      'observations': {'traps': trapsObs},
       'totalsByPest': totalsByPest,
       'totalFindings': totalFindings,
     };
 
-    // 1) Encola el monitoreo (offline-first)
     await OfflineSyncService.instance.enqueueFinishedTrapLine(
       weekKey: weekKey,
       weekStart: weekStart,
@@ -925,12 +1213,11 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       offlineTrapLinePayload: offlineTrapLinePayload,
     );
 
-    // 2) ✅ Guarda marcador local "FINALIZADA" para pintar en la pantalla anterior
     await OfflineSyncService.instance.saveDraft(
       weekKey: weekKey,
       greenhouseId: widget.map.id,
       capillaId: widget.capilla.id,
-      lineKey: _doneMarkerLineKey, // 👈 marcador
+      lineKey: _doneMarkerLineKey,
       startedAtMs: _startedAt.millisecondsSinceEpoch,
       rightPass: false,
       idx: 0,
@@ -940,7 +1227,6 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
       },
     );
 
-    // 3) Borra el draft de captura
     await OfflineSyncService.instance.clearDraft(
       weekKey: _weekKey,
       greenhouseId: widget.map.id,
@@ -952,7 +1238,11 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Monitoreo guardado en el teléfono. Se subirá automáticamente al haber internet.')),
+      const SnackBar(
+        content: Text(
+          'Monitoreo guardado en el teléfono. Se subirá automáticamente al haber internet.',
+        ),
+      ),
     );
     Navigator.pop(context);
   }
@@ -974,7 +1264,9 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
   int _isoWeekNumber(DateTime dt) {
     final thursday = dt.add(Duration(days: 3 - ((dt.weekday + 6) % 7)));
     final firstThursday = DateTime(thursday.year, 1, 4);
-    final firstWeekThursday = firstThursday.add(Duration(days: 3 - ((firstThursday.weekday + 6) % 7)));
+    final firstWeekThursday = firstThursday.add(
+      Duration(days: 3 - ((firstThursday.weekday + 6) % 7)),
+    );
     final diff = thursday.difference(firstWeekThursday).inDays;
     return 1 + (diff ~/ 7);
   }
@@ -987,7 +1279,7 @@ class _MonitoraTrapMonitoringPageState extends State<MonitoraTrapMonitoringPage>
   }
 }
 
-// ======================== UI Components ========================
+// ======================== UI Components (SIN CAMBIOS) ========================
 
 class _HeaderCardTrap extends StatelessWidget {
   final Color accent;
@@ -1052,7 +1344,11 @@ class _HeaderCardTrap extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    Icon(Icons.grid_view_rounded, size: 16, color: Colors.black.withValues(alpha: 0.55)),
+                    Icon(
+                      Icons.grid_view_rounded,
+                      size: 16,
+                      color: Colors.black.withValues(alpha: 0.55),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -1084,9 +1380,16 @@ class _HeaderCardTrap extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.local_activity_outlined, size: 16, color: accent),
+                    Icon(
+                      Icons.local_activity_outlined,
+                      size: 16,
+                      color: accent,
+                    ),
                     const SizedBox(width: 6),
-                    Text(trapLabel, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(
+                      trapLabel,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -1156,7 +1459,10 @@ class _ProgressStrip extends StatelessWidget {
               ),
               Text(
                 '${currentIndex + 1}/$total',
-                style: TextStyle(fontWeight: FontWeight.w900, color: Colors.black.withValues(alpha: 0.70)),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black.withValues(alpha: 0.70),
+                ),
               ),
             ],
           ),
@@ -1180,10 +1486,7 @@ class _TrapBadge extends StatelessWidget {
   final Color accent;
   final String label;
 
-  const _TrapBadge({
-    required this.accent,
-    required this.label,
-  });
+  const _TrapBadge({required this.accent, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -1255,7 +1558,10 @@ class _EmptyState extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     message,
@@ -1278,10 +1584,7 @@ class _SectionTitle extends StatelessWidget {
   final Color accent;
   final String title;
 
-  const _SectionTitle({
-    required this.accent,
-    required this.title,
-  });
+  const _SectionTitle({required this.accent, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -1332,7 +1635,9 @@ class _NavigationBar extends StatelessWidget {
             icon: const Icon(Icons.chevron_left),
             label: const Text('Regresar'),
             style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
@@ -1343,7 +1648,9 @@ class _NavigationBar extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: accent,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
               elevation: 0,
             ),
@@ -1357,7 +1664,6 @@ class _NavigationBar extends StatelessWidget {
   }
 }
 
-/// Dialog helper (igual que el de línea)
 class _KeyboardOpenSlide extends StatefulWidget {
   final Widget child;
   const _KeyboardOpenSlide({required this.child});
@@ -1366,7 +1672,8 @@ class _KeyboardOpenSlide extends StatefulWidget {
   State<_KeyboardOpenSlide> createState() => _KeyboardOpenSlideState();
 }
 
-class _KeyboardOpenSlideState extends State<_KeyboardOpenSlide> with WidgetsBindingObserver {
+class _KeyboardOpenSlideState extends State<_KeyboardOpenSlide>
+    with WidgetsBindingObserver {
   bool _open = false;
 
   @override

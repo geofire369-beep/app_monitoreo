@@ -1,3 +1,4 @@
+// lib/services/offline/offline_sync_service.dart
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,8 +9,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 /// - Drafts (ediciones en curso)
 /// - Outbox (pendiente por subir cuando haya internet)
 ///
-/// Ya soportaba FINISHED_LINE.
-/// Ahora soporta también FINISHED_TRAP_LINE (monitoreo de trampas por línea).
+/// Soporta:
+/// - FINISHED_LINE (monitoreo plaga por línea)
+/// - FINISHED_TRAP_LINE (monitoreo trampas por línea)
+/// - FINISHED_AGRO_FOCO_LINE (aplicación agroquímicos a FOCO por línea) ✅
 class OfflineSyncService {
   OfflineSyncService._();
   static final instance = OfflineSyncService._();
@@ -110,7 +113,7 @@ class OfflineSyncService {
 
   // ===================== Outbox helpers =====================
 
-  /// Regresa lineKeys pendientes para "líneas de plaga" (FINISHED_LINE)
+  /// Pendientes para "líneas de plaga" (FINISHED_LINE)
   Set<String> pendingLineKeys({
     required String weekKey,
     required String greenhouseId,
@@ -137,7 +140,7 @@ class OfflineSyncService {
     return out;
   }
 
-  /// NUEVO: regresa lineKeys pendientes para "líneas de trampas" (FINISHED_TRAP_LINE)
+  /// Pendientes para "líneas de trampas" (FINISHED_TRAP_LINE)
   Set<String> pendingTrapLineKeys({
     required String weekKey,
     required String greenhouseId,
@@ -164,7 +167,34 @@ class OfflineSyncService {
     return out;
   }
 
-  // ===================== Enqueue: finished line =====================
+  /// ✅ Pendientes para "agro foco" (FINISHED_AGRO_FOCO_LINE)
+  Set<String> pendingAgroFocoLineKeys({
+    required String weekKey,
+    required String greenhouseId,
+    required String capillaId,
+  }) {
+    final out = <String>{};
+
+    if (_outbox == null) return out;
+
+    for (final k in _outbox!.keys) {
+      final it = _outbox!.get(k);
+      if (it is! Map) continue;
+      final m = Map<String, dynamic>.from(it);
+
+      if ((m['kind'] ?? '') != 'FINISHED_AGRO_FOCO_LINE') continue;
+      if ((m['weekKey'] ?? '') != weekKey) continue;
+      if ((m['greenhouseId'] ?? '') != greenhouseId) continue;
+      if ((m['capillaId'] ?? '') != capillaId) continue;
+
+      final lineKey = (m['lineKey'] ?? '').toString();
+      if (lineKey.isNotEmpty) out.add(lineKey);
+    }
+
+    return out;
+  }
+
+  // ===================== Enqueue: finished line (plaga) =====================
 
   Future<void> enqueueFinishedLine({
     required String weekKey,
@@ -195,7 +225,7 @@ class OfflineSyncService {
     outboxListenable.value = _outbox?.length ?? 0;
   }
 
-  // ===================== NUEVO: Enqueue finished trap-line =====================
+  // ===================== Enqueue: finished trap-line =====================
 
   Future<void> enqueueFinishedTrapLine({
     required String weekKey,
@@ -217,6 +247,37 @@ class OfflineSyncService {
       'capillaId': capillaId,
       'lineKey': lineKey,
       'offlineTrapLinePayload': offlineTrapLinePayload,
+      'tryCount': 0,
+      'nextTryAtMs': 0,
+      'createdAtMs': DateTime.now().millisecondsSinceEpoch,
+    };
+
+    await _outbox?.put(id, it);
+    outboxListenable.value = _outbox?.length ?? 0;
+  }
+
+  // ===================== ✅ Enqueue: finished agro foco line =====================
+
+  Future<void> enqueueFinishedAgroFocoLine({
+    required String weekKey,
+    required DateTime weekStart,
+    required DateTime weekEnd,
+    required String greenhouseId,
+    required String capillaId,
+    required String lineKey,
+    required Map<String, dynamic> offlineAgroFocoLinePayload,
+  }) async {
+    final id = 'agrofoco_${DateTime.now().millisecondsSinceEpoch}_$lineKey';
+
+    final it = <String, dynamic>{
+      'kind': 'FINISHED_AGRO_FOCO_LINE',
+      'weekKey': weekKey,
+      'weekStartMs': weekStart.millisecondsSinceEpoch,
+      'weekEndMs': weekEnd.millisecondsSinceEpoch,
+      'greenhouseId': greenhouseId,
+      'capillaId': capillaId,
+      'lineKey': lineKey,
+      'offlineAgroFocoLinePayload': offlineAgroFocoLinePayload,
       'tryCount': 0,
       'nextTryAtMs': 0,
       'createdAtMs': DateTime.now().millisecondsSinceEpoch,
@@ -321,6 +382,7 @@ class OfflineSyncService {
       SetOptions(merge: true),
     );
 
+    // ---------------- FINISHED_LINE ----------------
     if (kind == 'FINISHED_LINE') {
       final payloadAny = it['offlineLinePayload'];
       if (payloadAny is! Map) throw Exception('offlineLinePayload inválido');
@@ -356,6 +418,7 @@ class OfflineSyncService {
       return;
     }
 
+    // ---------------- FINISHED_TRAP_LINE ----------------
     if (kind == 'FINISHED_TRAP_LINE') {
       final payloadAny = it['offlineTrapLinePayload'];
       if (payloadAny is! Map) throw Exception('offlineTrapLinePayload inválido');
@@ -376,7 +439,6 @@ class OfflineSyncService {
         'totalFindings': offline['totalFindings'] ?? 0,
       };
 
-      // Guardamos en el doc de capilla bajo "trapLines"
       batch.set(
         capRef,
         {
@@ -384,6 +446,47 @@ class OfflineSyncService {
           'updatedAt': FieldValue.serverTimestamp(),
           'trapLines': {
             lineKey: firestoreTrapLinePayload,
+          },
+        },
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+      return;
+    }
+
+    // ---------------- ✅ FINISHED_AGRO_FOCO_LINE ----------------
+    if (kind == 'FINISHED_AGRO_FOCO_LINE') {
+      final payloadAny = it['offlineAgroFocoLinePayload'];
+      if (payloadAny is! Map) throw Exception('offlineAgroFocoLinePayload inválido');
+      final offline = Map<String, dynamic>.from(payloadAny);
+
+      final startedAtMs = (offline['startedAtMs'] ?? 0) as int;
+      final finishedAtMs = (offline['finishedAtMs'] ?? 0) as int;
+
+      final agroAny = offline['agroFoco'];
+      final agro = (agroAny is Map) ? Map<String, dynamic>.from(agroAny) : <String, dynamic>{};
+
+      final firestoreAgroPayload = <String, dynamic>{
+        'status': 'FINISHED',
+        'byUid': (offline['byUid'] ?? '').toString(),
+        'byName': (offline['byName'] ?? '').toString(),
+        'startedAt': Timestamp.fromMillisecondsSinceEpoch(startedAtMs),
+        'finishedAt': Timestamp.fromMillisecondsSinceEpoch(finishedAtMs),
+        'updatedAt': FieldValue.serverTimestamp(),
+        // Estructura: { focus: { L: {post:{pestKey:[apps]}}, R: {...} } }
+        'focus': agro['focus'] ?? <String, dynamic>{},
+      };
+
+      batch.set(
+        capRef,
+        {
+          'capillaId': capId,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lines': {
+            lineKey: {
+              'agroFoco': firestoreAgroPayload,
+            },
           },
         },
         SetOptions(merge: true),

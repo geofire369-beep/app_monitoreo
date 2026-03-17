@@ -6,6 +6,8 @@ import '../../../theme/app_theme.dart';
 import '../../services/offline/offline_sync_service.dart';
 import 'monitora_line_monitoring_page.dart';
 
+
+
 class MonitoraNewMonitoringPage extends StatefulWidget {
   const MonitoraNewMonitoringPage({super.key});
 
